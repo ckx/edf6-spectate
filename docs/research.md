@@ -149,8 +149,24 @@ The local player's camera stayed the same object throughout. Its `+0x3D4` byte
 followed the target's `+0x194` (the constructor copies `+0x170..` or `+0x230..` of the
 target into `+0x3B0..`).
 
-The plugin treats `health <= 0` as down, as `IsAlive` does. The other fields are
-recorded for a later check.
+The plugin treats `health <= 0` as down, as `IsAlive` does. Over the full two-hour
+sample (three missions, 02:35 to 03:08, then the game closed), there were 12 downed
+periods across slots 0, 1 and 2, each ending in a revive after 8 to 20 seconds.
+`+0x1180` and `+0x194` matched the downed state in every sample for slots 0 and 2;
+`+0x2E8` did not hold across the whole sample. No player was seen staying down
+until the mission ended, and nobody left the room.
+
+### End of a mission
+
+About 12 seconds before each mission unloaded (02:38:40, 02:54:09, 03:06:36), a
+second set of four players appeared in the TeamManager map, one more object per
+slot, with full health and the same local and remote flags. The game then created a
+second `CharacterGhostCamera` on view 0 following the new local object, and it became
+current. Health of the new remote objects changed while the old ones stayed
+constant. Then every view and player was gone until the next mission started.
+
+The plugin does nothing while any slot has two players, so it never moves the view
+off the game's new camera.
 
 ## Online mode
 

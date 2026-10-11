@@ -18,6 +18,8 @@ camera.
 - When the local player is revived, the view returns to their own camera. It also
   returns when every teammate is down.
 - A camera following someone who left the room is never left current.
+- While the game holds two sets of players at the end of a mission, the plugin does
+  nothing, so the game's own camera change goes through.
 - Nothing is sent over the network. Each player's plugin acts on its own view only.
   Players without the plugin see no difference.
 - The game's HUD stays as it is: the downed player's own HUD and rescue messages.
@@ -35,7 +37,8 @@ Each frame, before calling the game's `System::Update`, it:
    `CharacterGhostCamera`.
 2. Reads the players from the TeamManager map, as the game's `create_remote_camera`
    debug command does: the local player (local controller, not remote) and the
-   remote players (remote bit, network record), with slot and health.
+   remote players (remote bit, network record), with slot and health. It returns if
+   any slot has two players.
 3. Works out whom the current camera follows: the local player, a teammate by slot,
    or someone gone.
 4. Chooses the target with `NextTarget` when the local player is down, else the

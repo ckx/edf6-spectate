@@ -128,6 +128,9 @@ struct Player {
 struct Roster {
     Player local{};
     bool hasLocal = false;
+    // Two players for one slot. Seen for about 12 seconds at the end of each mission, when the game builds a second
+    // set of players and a camera for the new local one: the view is the game's to change then.
+    bool doubled = false;
     Player remote[kMaxPlayers]{};  // in slot order
     std::size_t remotes = 0;
 };
@@ -148,10 +151,12 @@ Roster ReadRoster() {
             const Player player{soldier, net ? At<std::uint32_t>(net + kNetSlot) : kOwnCamera,
                                 At<float>(soldier + kHealth) > 0.0f};
             const bool remote = (At<std::uint32_t>(soldier + kRemote) & 1) != 0;
-            if (!remote && Ptr(soldier + kLocalControl) && !roster.hasLocal) {
+            if (!remote && Ptr(soldier + kLocalControl)) {
+                roster.doubled |= roster.hasLocal;
                 roster.local = player;
                 roster.hasLocal = true;
             } else if (remote && net && roster.remotes < kMaxPlayers) {
+                for (std::size_t i = 0; i < roster.remotes; ++i) roster.doubled |= roster.remote[i].slot == player.slot;
                 std::size_t at = roster.remotes++;
                 for (; at > 0 && roster.remote[at - 1].slot > player.slot; --at)
                     roster.remote[at] = roster.remote[at - 1];
@@ -228,7 +233,7 @@ void Follow(std::uintptr_t system) {
     const std::uintptr_t followed = Followed(current);
 
     const Roster roster = ReadRoster();
-    if (!roster.hasLocal) return;
+    if (!roster.hasLocal || roster.doubled) return;
     std::uint32_t followedSlot = kOwnCamera;
     if (followed != roster.local.object) {
         // A teammate, or someone who left the room. The ghost camera's update (slot 3, F8210, which 11978D0 runs for
