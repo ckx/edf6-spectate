@@ -1,7 +1,8 @@
 # Research notes
 
 Static analysis of the supported EDF.dll on 2026-10-11, plus read-only sampling of a
-running game in a four-player online mission on the same date. The sampler read
+running game in four-player online missions on the same date (two hours, three
+missions). The sampler read
 process memory through `/proc/<pid>/mem` under Proton and wrote nothing. No build
 of the plugin has run inside the game yet.
 
