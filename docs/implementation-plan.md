@@ -65,7 +65,7 @@ The user requested an installable release before live testing. Publish it as an
 experimental prerelease with the missing live checks stated. M3 is still pending;
 a stable release follows successful live verification. See `releasing.md`.
 
-## M6. Spectated teammate's combat HUD
+## M6. Spectated teammate's health and names
 
 The user requested the full combat HUD after the successful 0.1.1 camera retry.
 Version 0.2.0 attached the native local-player HUD builder to each teammate camera.
@@ -83,3 +83,16 @@ After those dependencies are resolved, live checks still needed: health, ammo an
 reload changes; different classes and weapon layouts; radar and crosshair; return
 on revival; repeated spectating; disconnects and mission transitions. Remote
 values are only as current as the game's own copy of that teammate.
+
+The user narrowed the next attempt to health and remote names after the crash.
+Version 0.3.0 calls only the health-layout factory and the multiplayer indicators
+factory. The watched player owns the displayed health values; the local player
+remains the name indicators' viewer. The native enumeration excludes that viewer,
+not the watched teammate. Full HUD replication is deferred.
+
+The health constructor, update/display methods and their player-data helpers were
+inspected against EDF.dll. The multiplayer name path uses the player's network
+record and room slot. New code checks cover those interfaces. The release is built
+and packaged, but no live HUD check has passed yet. Check health changes, name
+visibility, inactive-camera HUD hiding, revival, a second death, vehicles and
+teammate departures before expanding the HUD.

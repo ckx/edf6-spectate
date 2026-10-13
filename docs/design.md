@@ -22,10 +22,13 @@ camera.
   nothing, so the game's own camera change goes through.
 - Nothing is sent over the network. Each player's plugin acts on its own view only.
   Players without the plugin see no difference.
-- Teammate combat HUD replication is disabled in 0.2.1. The 0.2.0 native HUD
-  attachment crashed because its widgets assume local-player data. Full combat
-  HUD support remains in scope, but needs a different implementation.
-- Returning to the local camera returns its original HUD.
+- Version 0.3.0 attaches only a health gauge and multiplayer name/health indicators.
+  The gauge reads the watched teammate's current/maximum health directly. The name
+  indicators keep the local player as their viewer, so their normal exclusion of
+  the viewer does not hide the watched teammate. Names use the game's settings.
+- Returning to the local camera returns its original HUD. No ammo, radar, damage
+  or class gauges are created for spectator cameras. The smaller HUD is unverified
+  online. Full combat HUD support is deferred in favor of health and names.
 
 Not in the prototype: a button to choose whom to watch, a free camera, watching while
 alive, and offline split screen. A cycle button is the next decision for the user
@@ -51,6 +54,11 @@ Each frame, before calling the game's `System::Update`, it:
    `0x11932F0` does), or, for a teammate without one, creates a camera through the
    game's factory with the same InitParam `create_remote_camera` builds. The game's
    flush in the `System::Update` that follows makes the new camera current.
+6. For a new camera, attach the health widget through `0x7FC9A0` using only the
+   `lyt_HudPowerGauge01.sgo` layout and the watched player. Attach multiplayer
+   indicators through `0x7FD580` using the local player as the viewer. Release
+   both returned weak references; the camera owns the objects. The full HUD builder
+   at `0x7FE5D0` is never called. Invalid health/max values skip the health widget.
 
 The plugin keeps no game pointers between frames. Its only state is a bit per slot
 for cameras it asked for during the current downed period, so a camera that fails to
@@ -65,9 +73,11 @@ strong reference and crashed on its first live camera activation. Version 0.1.1
 corrects this. The user confirmed that 0.1.1 worked online; its log also recorded
 following a teammate and returning to the player's own camera. Version 0.2.1
 restores that camera-only path after the HUD addition in 0.2.0 crashed online.
+Version 0.3.0 adds the two isolated HUD components described above.
 
 Every read and call runs in `Guarded`. A fault stops the plugin for the rest of the
-session and logs it; the game call is not retried. This cannot undo partial game
+session and logs its exception code and instruction address; the game call is not
+retried. This cannot undo partial game
 object creation or make those objects safe for later native updates.
 
 ## Installation and refusal
@@ -91,4 +101,5 @@ before the write refuses with nothing changed. The plugin then stays loaded.
 - Input to cycle teammates or return to the own camera while down, and how to read it
   (game input, XInput, keyboard).
 - Whether to watch while the local player has bled out, if the game has such a state.
-- Whether to show the followed teammate's name.
+- Whether a separate fixed spectator-name caption is needed beyond the native
+  multiplayer indicators.

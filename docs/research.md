@@ -7,7 +7,8 @@ process memory through `/proc/<pid>/mem` under Proton and wrote nothing. The fir
 live run of 0.1.0 on 2026-10-12 crashed on entering spectate; see the correction
 below. The user reported that 0.1.1 worked online. The log confirms following a
 teammate and returning to the local camera. The 0.2.0 combat HUD attempt crashed
-online; 0.2.1 removes its native HUD attachment. See the crash analysis below.
+online; 0.2.1 removes its native HUD attachment. Version 0.3.0 uses only health
+and multiplayer name/health indicators. This smaller HUD is not live-verified.
 
 ## Supported image
 
@@ -35,6 +36,38 @@ functions. Any mismatch refuses installation before anything is written.
 | Script `Object::IsAlive` | `0x1C0BE0` | `0x2E` | `0xA905EB899CAEB9D9` |
 | Script `IsOnlineMode` | `0x1B5DF0` | `0x2B` | `0xA71A18502F48BC92` |
 | `__RTDynamicCast` import thunk | `0x12DA7AA` | `0x6` | `0xD6E2BD7734AF1D4E` |
+
+Version 0.3.0 additionally checks these HUD ranges. The native builder is verified
+as evidence of parameter layout, but is never called by the plugin.
+
+| Range | RVA | Size | FNV-1a 64 |
+| --- | --- | --- | --- |
+| native HUD call parameters | `0x7FE5D0` | `0x988` | `0x30B0F56AE0009F97` |
+| health HUD factory | `0x7FC9A0` | `0x259` | `0xC053F7AAE37CD46D` |
+| teammate names HUD factory | `0x7FD580` | `0x257` | `0xD3B9016D4F01994A` |
+| camera HUD ownership transfer | `0x7FF390` | `0x9A` | `0x7B2D65E7F57F7623` |
+| health HUD wrapper construction | `0x815990` | `0x63` | `0x5FF1DB331C4F55D1` |
+| health HUD layout construction | `0x815E60` | `0x218` | `0xFECAC8EC031E8E36` |
+| health HUD player binding | `0x815810` | `0x172` | `0x2F4117E29D9C1FE6` |
+| health HUD wrapper cleanup | `0x815B10` | `0x1A9` | `0x4FF33942129D9B7D` |
+| health HUD camera visibility | `0x8168B0` | `0x1D3` | `0x03B27D69E6200892` |
+| health HUD layout setup | `0x816080` | `0x41A` | `0x70DDB2694F60B2B4` |
+| health HUD layout transform | `0x8164A0` | `0x17A` | `0xBD774FC23FF6F171` |
+| health gauge construction | `0x825250` | `0xDB4` | `0x3C71A55DAA5E8A8A` |
+| health gauge display | `0x826250` | `0xDB8` | `0xF4FE74DF3E238442` |
+| health gauge update | `0x827010` | `0x79A` | `0xC44952D123F21801` |
+| health gauge vehicle display | `0x8277B0` | `0x390` | `0xEBF4C2C16F34319F` |
+| HUD vehicle lookup | `0x8024D0` | `0xA0` | `0x55389265C9EC92B0` |
+| multiplayer HUD player binding | `0x7FF670` | `0x167` | `0x7AA4C0C4DC39856A` |
+| teammate names HUD construction | `0x8047C0` | `0xD4` | `0x89F3DD8D4B8AF127` |
+| teammate names HUD resources | `0x806FE0` | `0x590` | `0xA5BC1A7D743AD0EA` |
+| teammate names HUD update | `0x807870` | `0x50B` | `0x4982CB0CA1FA9638` |
+| teammate names owner exclusion | `0x807680` | `0x12A` | `0x3799AE9CAA03B906` |
+| teammate names HUD draw loop | `0x8077B0` | `0xB9` | `0xD3C67D358E532814` |
+| teammate name and health drawing | `0x804C90` | `0x1A1E` | `0x793D6D440F8AE747` |
+| teammate name and network slot | `0x7FFBD0` | `0x316` | `0x928DCDE1820225DC` |
+| network display name | `0x784830` | `0x1D6` | `0xAC8CA0E518BFCB02` |
+| network platform name | `0x12ABFF0` | `0x266` | `0x2FFD4BD265F55D78` |
 
 ## Hook: the System::Update call
 
@@ -302,11 +335,94 @@ and updates before attaching widgets. Remote ammo/reload and class-gauge accurac
 all class layouts, crosshair behavior and cleanup after disconnects or mission
 end still need live checks. This mod sends no extra state over the network.
 
+### Smaller health and name HUD in 0.3.0
+
+The user accepted a smaller HUD with health as the priority and remote player
+names. Version 0.3.0 creates two isolated components through existing factories.
+It does not call `0x7FE5D0` or construct weapon, radar or damage widgets.
+
+Health gauge evidence:
+
+- The native call at `0x7FEC45` invokes `0x7FC9A0(camera, weakOut, param)`.
+  Its 0x28-byte InitParam has vtable `0x17F6768`, camera at `+8` populated by the
+  factory, player at `+0x10`, UTF-16 layout path at `+0x18`, two zero bytes at
+  `+0x20/+0x21`, and view index at `+0x24`. The layout pointer is `0x17F6790`,
+  `app:/ui/lyt_HudPowerGauge01.sgo`. Spectate uses view 0, as its camera does.
+- The factory constructs `HUiHudBaseObject` through `0x815990`, which loads that
+  layout through `0x815E60`. Its weak reference to the UI widget is in the vector
+  at `+0x70`. `0x815810` binds the InitParam's player to `+0x778/+0x780`.
+- `HUiHudPowerGauge` has vtable `0x17FCC98`, constructor `0x825250`, update
+  `0x827010` and display `0x826250`. Construction reads health `+0x2F8` and
+  maximum health `+0x2F4` at `0x825C9F/0x825CA8`. Update reads the same pair at
+  `0x827126/0x82712F`; display converts them to current/maximum numbers at
+  `0x826A83/0x826A9C`. This confirms the earlier maximum-armor inference.
+- Those methods use the player's weak reference and do not index the local-player
+  settings through `player+0x338`. Common layout setup `0x816080` reads a global
+  layout option at `session+0x14FF4`; it does not need the remote player's missing
+  local settings index. Vehicle display uses `0x8024D0`, which locks the vehicle
+  reference at `+0x1548/+0x1550`, and `0x8277B0`.
+- The plugin checks that current/max health are finite and positive before
+  construction, so an invalid initial denominator skips the gauge. Future values
+  follow the game's normal health widget behavior. This initial check does not
+  prove future remote values or vehicle transitions are valid.
+
+Multiplayer name/health indicator evidence:
+
+- The native call at `0x7FEDBA` invokes `0x7FD580(camera, weakOut, param)`.
+  InitParam vtable is `0x17F6738`, camera at `+8`, owner/viewer at `+0x10`.
+  The factory constructs `HudPlayer_MultiPlayStatus` via `0x8047C0` and its base
+  `0x7FF670`. The base binds that viewer as a weak reference at `+0x70/+0x78`.
+- Update `0x807870` enumerates TeamManager with callback `0x807680`. The callback
+  compares a candidate with the supplied viewer at `0x807689` and skips an equal
+  pointer. Spectate supplies the local player as viewer, not the watched remote
+  player, so that exclusion does not remove the watched player from the indicators.
+- Draw loop `0x8077B0` calls `0x804C90` per player. That path reads a player's
+  current/max health at `0x804E45/0x804E4F`. It calls `0x7FFBD0` for name and slot.
+  That helper uses SoldierBase's network record at `+0x1ED0`, checks for a null
+  record, and uses its network slot at `+0x48`. It obtains the display name through
+  `0x784830` and, when game settings request it, platform name `0x12ABFF0`.
+  This is the game's existing remote-name path, not the missing local index.
+- Indicators keep the game's name-display settings and native placement. The
+  implementation does not add a separate fixed "Spectating <name>" caption.
+  Whether the watched character's indicator remains readable close to the camera
+  is a live-check item.
+
+Both factories move their strong reference into the camera's HUD list through
+`0x7FF390` and return a weak reference. Spectate releases only the returned weak
+references. Each new spectator camera gets its HUD once; subsequent spectating
+reuses that camera. The local camera and its HUD bindings are unchanged. No game
+pointers are cached by the plugin between frames. `0x8168B0` gates the health
+widget on its camera's visibility; native camera drawing owns the name indicators.
+
+New setup logs identify health versus names construction. `Guarded` can now
+return the caught exception code and instruction address to the caller. Its
+exception handler records those scalar values before restoring the saved context;
+it does not call the logger or attempt to undo game calls. The update hook logs
+the fault and disables further work, as before. A partial native construction
+still cannot be rolled back by this guard.
+
+A read-only sample of the user's running game on 2026-10-12 confirmed that its
+local camera owns a separate `HUiHudBaseObject` containing the health widget
+`0x17FCC98`, and a separate `HudPlayer_MultiPlayStatus` with its viewer bound to
+the local soldier. Both slots were down in this sample: slot 0 had health/max
+`0/290`, and remote slot 1 had `0/298.4`. The remote's local settings index was
+`0xFFFFFFFF`, while its network slot remained 1. The snapshot is in
+`local/health-hud-research/live-native-bindings.json`. The process was read only;
+this is evidence of the stock objects and data, not a 0.3.0 runtime test.
+
+Validation so far: static inspection against the installed supported EDF.dll,
+read-only live inspection, relocation checks for the added byte ranges, and a
+MinGW/clang release build.
+No new tests or CI were added. No online HUD rendering, health changes, revival,
+vehicle transitions or disconnect behavior has yet been verified for 0.3.0.
+
 ## Open questions
 
-- Replace the unsafe local-player HUD builder before further HUD play checks.
-  Remote ammo, reloads and class gauges also need verification. The basic
-  0.1.1 camera follow and return were confirmed by the user and log.
+- Live-check the isolated health/name components in 0.3.0, including name placement,
+  health changes, revival, repeated deaths, vehicles and disconnected targets.
+  The basic 0.1.1 camera follow and return were confirmed by the user and log.
+- A separate fixed spectator-name caption if the native indicators are hard to read.
+- Full combat HUD support is deferred; remote ammo and class gauges remain unverified.
 - Whether a player can stay down until the mission ends, or bleeds out, and what
   happens to the object then.
 - Whether NPC allies appear in the TeamManager map. The plugin only takes objects

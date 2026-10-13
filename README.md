@@ -3,16 +3,16 @@
 An EDFModLoader plugin for EARTH DEFENSE FORCE 6. In an online room, a downed player
 watches a standing teammate through the game's follow camera until revived.
 
-Status: experimental. Camera following worked in the user's online retry of
-0.1.1. Version 0.2.1 removes the combat HUD attachment added in 0.2.0 after it
-crashed in online play. Spectating is camera-only again; full combat HUD support
-remains planned. Do not use 0.2.0.
+Status: experimental. Camera following worked online in 0.1.1. Version 0.3.0
+adds only the watched teammate's health bar and the native multiplayer name/health
+indicators. It avoids the full HUD builder that crashed in 0.2.0. The smaller HUD
+still needs an online check; 0.2.1 remains the camera-only fallback.
 
 ## Install
 
-Download `EDF6Spectate-0.2.1.zip` from the experimental release:
+Download `EDF6Spectate-0.3.0.zip` from the experimental release:
 
-https://github.com/ckx/edf6-spectate/releases/tag/v0.2.1
+https://github.com/ckx/edf6-spectate/releases/tag/v0.3.0
 
 Close EDF6, back up your saves, and extract the whole ZIP to a separate folder.
 Use the release ZIP, not GitHub's source-code archives.
@@ -42,9 +42,12 @@ DLL; the loader, other mods and logs remain.
 - Going down online switches your view to the standing teammate with the lowest
   slot. If they go down or leave, it moves to the next one.
 - Being revived, or every teammate being down, returns your own camera.
-- Teammate HUD replication is disabled. Your original HUD returns with your own
-  camera. Native HUD widgets assume a local player and cannot safely be attached
-  to a remote teammate without further changes.
+- The watched teammate gets a native health bar with current/maximum health.
+  Multiplayer name/health indicators keep your local player as their viewer, so
+  they include the watched teammate and use the game's normal name settings.
+- Your own camera and HUD return on revival. Ammo, radar, damage effects and class
+  gauges are not attached to spectator cameras. Health/name placement and updates
+  still need a live check.
 - Offline play and split screen are left alone.
 - Nothing is sent to other players. They do not need the plugin.
 - There is no manual button to switch teammates yet.
@@ -52,7 +55,7 @@ DLL; the loader, other mods and logs remain.
   code another mod changed, makes the plugin refuse and change nothing.
 
 `Mods/Plugins/EDF6Spectate.log` records whether the plugin installed and each camera
-change.
+change. Runtime faults also record the exception code and instruction address.
 
 ## Documents
 

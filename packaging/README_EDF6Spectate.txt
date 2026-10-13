@@ -1,15 +1,19 @@
-EDF6 Spectate 0.2.1 - experimental
+EDF6 Spectate 0.3.0 - experimental
 
-Version 0.2.1 removes the combat HUD attachment that crashed in 0.2.0 and restores
-the camera behavior that worked online in 0.1.1. Full combat HUD support remains
-planned. Do not use 0.2.0.
+Version 0.3.0 adds the watched teammate's health bar and native multiplayer
+name/health indicators. This smaller HUD still needs an online check. It does not
+use the full HUD builder that crashed in 0.2.0. Version 0.2.1 is the camera-only
+fallback.
 
 HOW IT WORKS
 When you go down online, the camera follows a living teammate. If that player goes
 down or leaves, it selects another. Reviving, or everyone going down, returns your
-camera and original HUD. Spectating is camera-only; teammate HUD replication is
-disabled because native HUD widgets require local-player data. Other players do
-not need this mod, and no extra network messages are sent.
+camera and original HUD. The spectator health bar reads the watched teammate's
+current and maximum health. Multiplayer name/health indicators remain bound to
+you as the viewer so the watched player stays included. Name display follows the
+game's normal settings. Ammo, radar, damage effects and class gauges stay disabled
+on spectator cameras. Other players do not need this mod. No extra network
+messages are sent.
 There is no manual player-switching button yet. Offline and split screen are left
 alone. Supports the Steam EDF.dll from the January 2025 update only.
 
@@ -45,7 +49,8 @@ CHECK / REMOVE
 Mods/Plugins/EDF6Spectate.log should contain "Installed:" after launching.
 "REFUSED:" means unsupported or modified game code; the plugin changes nothing.
 "STOPPED:" means a runtime fault; stop testing and keep the log for a bug report.
-Try going down, watching a teammate move, and getting revived. Online behavior,
+Try going down, watching a teammate lose/recover health, and getting revived.
+Check names and health values as well as your own HUD after revival. Online behavior,
 disconnects, mission transitions and compatibility still need live verification.
 Upgrade by running the newer installer with EDF6 closed.
 Uninstall with UNINSTALL.bat, or: bash install.sh --uninstall

@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <cmath>
 #include <cstring>
 
 #include "guard.h"
@@ -11,6 +12,11 @@ namespace spectate {
 namespace {
 
 constexpr std::uint32_t kGhostCameraFactory = 0x82B40;  // System's factory for CharacterGhostCamera
+constexpr std::uint32_t kHealthHudFactory = 0x7FC9A0;  // (SceneCamera*, weak_ptr* out, HUiHudBaseObject::InitParam*)
+constexpr std::uint32_t kNamesHudFactory = 0x7FD580;   // (SceneCamera*, weak_ptr* out, HudPlayer::InitParam*)
+constexpr std::uint32_t kHealthHudParamVtable = 0x17F6768;
+constexpr std::uint32_t kNamesHudParamVtable = 0x17F6738;
+constexpr std::uint32_t kHealthHudLayout = 0x17F6790;  // app:/ui/lyt_HudPowerGauge01.sgo
 constexpr std::uint32_t kWeakFromThis = 0x1198950;      // (SceneCamera*, weak_ptr* out)
 constexpr std::uint32_t kSetViewCamera = 0x1193FA0;     // (View*, weak_ptr<SceneCamera> by value)
 constexpr std::uint32_t kIsOnlineMode = 0x1B5DF0;       // the mission script's bool IsOnlineMode()
@@ -42,6 +48,7 @@ constexpr std::size_t kTreeNil = 0x19;
 constexpr std::size_t kTreeObject = 0x20;
 // SoldierBase
 constexpr std::size_t kRemote = 0x128;        // bit 0: a remote player's copy
+constexpr std::size_t kMaxHealth = 0x2F4;     // float; HUiHudPowerGauge uses it as the health-bar denominator
 constexpr std::size_t kHealth = 0x2F8;        // float; the script's IsAlive is health > 0, and a downed player has 0
 constexpr std::size_t kLocalControl = 0x340;  // set on a locally controlled player
 constexpr std::size_t kNetPlayer = 0x1ED0;    // a network player's record, with its slot at +0x48
@@ -55,6 +62,7 @@ constexpr std::size_t kMaxPlayers = 8;
 
 using SystemUpdateFn = void (*)(void* system, float step, std::uint32_t frames);
 using FactoryFn = void* (*)(void* system, void* weakOut, std::uint32_t view, const float* matrix, void* param);
+using HudFactoryFn = void* (*)(void* camera, void* weakOut, void* param);
 using WeakFromThisFn = void* (*)(void* camera, void* out);
 using SetViewCameraFn = void (*)(void* view, void* weak);
 using IsOnlineModeFn = bool (*)();
@@ -72,6 +80,32 @@ constexpr Code kCode[] = {
     {"System::Update call", kSystemUpdateCall, 0x5, 0xF9744FB4304DB3F6},
     {"System::Update", kSystemUpdate, 0x9FB, 0x7F0564B7A3BF2724},
     {"CharacterGhostCamera factory", kGhostCameraFactory, 0x1DC, 0x6F6DB55CC4005B3C},
+    {"native HUD call parameters", 0x7FE5D0, 0x988, 0x30B0F56AE0009F97},
+    {"health HUD factory", 0x7FC9A0, 0x259, 0xC053F7AAE37CD46D},
+    {"teammate names HUD factory", 0x7FD580, 0x257, 0xD3B9016D4F01994A},
+    {"camera HUD ownership transfer", 0x7FF390, 0x9A, 0x7B2D65E7F57F7623},
+    {"health HUD wrapper construction", 0x815990, 0x63, 0x5FF1DB331C4F55D1},
+    {"health HUD layout construction", 0x815E60, 0x218, 0xFECAC8EC031E8E36},
+    {"health HUD player binding", 0x815810, 0x172, 0x2F4117E29D9C1FE6},
+    {"health HUD wrapper cleanup", 0x815B10, 0x1A9, 0x4FF33942129D9B7D},
+    {"health HUD camera visibility", 0x8168B0, 0x1D3, 0x03B27D69E6200892},
+    {"health HUD layout setup", 0x816080, 0x41A, 0x70DDB2694F60B2B4},
+    {"health HUD layout transform", 0x8164A0, 0x17A, 0xBD774FC23FF6F171},
+    {"health gauge construction", 0x825250, 0xDB4, 0x3C71A55DAA5E8A8A},
+    {"health gauge display", 0x826250, 0xDB8, 0xF4FE74DF3E238442},
+    {"health gauge update", 0x827010, 0x79A, 0xC44952D123F21801},
+    {"health gauge vehicle display", 0x8277B0, 0x390, 0xEBF4C2C16F34319F},
+    {"HUD vehicle lookup", 0x8024D0, 0xA0, 0x55389265C9EC92B0},
+    {"multiplayer HUD player binding", 0x7FF670, 0x167, 0x7AA4C0C4DC39856A},
+    {"teammate names HUD construction", 0x8047C0, 0xD4, 0x89F3DD8D4B8AF127},
+    {"teammate names HUD resources", 0x806FE0, 0x590, 0xA5BC1A7D743AD0EA},
+    {"teammate names HUD update", 0x807870, 0x50B, 0x4982CB0CA1FA9638},
+    {"teammate names owner exclusion", 0x807680, 0x12A, 0x3799AE9CAA03B906},
+    {"teammate names HUD draw loop", 0x8077B0, 0xB9, 0xD3C67D358E532814},
+    {"teammate name and health drawing", 0x804C90, 0x1A1E, 0x793D6D440F8AE747},
+    {"teammate name and network slot", 0x7FFBD0, 0x316, 0x928DCDE1820225DC},
+    {"network display name", 0x784830, 0x1D6, 0xAC8CA0E518BFCB02},
+    {"network platform name", 0x12ABFF0, 0x266, 0x2FFD4BD265F55D78},
     {"view camera switch", kSetViewCamera, 0x18D, 0xF859E0B97E448F2F},
     {"weak_from_this", kWeakFromThis, 0x9C, 0x580BFED010D5E37E},
     {"camera flush", 0x1195A80, 0x159, 0xFAAA5CBBF9469555},
@@ -202,9 +236,32 @@ void ReleaseWeak(std::uintptr_t control) {
     reinterpret_cast<ControlFn>(Ptr(Ptr(control) + 8))(control);
 }
 
+// Match the isolated calls at 7FEC45 and 7FEDBA, not the full local-player HUD builder.
+struct HudParam {
+    std::uintptr_t vtable;
+    std::uintptr_t camera;
+    std::uintptr_t player;
+    const wchar_t* layout;
+    std::uint8_t flags[2];
+    std::uint16_t reserved;
+    std::uint32_t view;
+};
+static_assert(sizeof(HudParam) == 0x28 && offsetof(HudParam, view) == 0x24);
+
+void AttachHud(std::uintptr_t camera, std::uint32_t factory, HudParam& param) {
+    alignas(16) std::uintptr_t hud[2]{};
+    reinterpret_cast<HudFactoryFn>(game + factory)(reinterpret_cast<void*>(camera), hud, &param);
+    // Both factories move the strong reference into camera+208 and return only a weak reference.
+    ReleaseWeak(hud[1]);
+}
+
 // A ghost camera following `object` on view 0, made as the game's create_remote_camera (CCCA0) makes one. The System
 // adds it to the view and makes it current in its next flush, which the System::Update about to run does.
-void Create(std::uintptr_t system, std::uintptr_t object) {
+bool Create(std::uintptr_t system, std::uintptr_t object, std::uintptr_t viewer, std::uint32_t slot) {
+    // Read before making any game objects. The native gauge divides by maximum health.
+    const float health = At<float>(object + kHealth);
+    const float maximum = At<float>(object + kMaxHealth);
+    const bool healthValid = std::isfinite(health) && std::isfinite(maximum) && health > 0 && maximum > 0;
     alignas(16) const float identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
     alignas(16) unsigned char param[kParamSize]{};
     const auto vtable = reinterpret_cast<std::uintptr_t>(game + kGhostCameraParamVtable);
@@ -213,10 +270,28 @@ void Create(std::uintptr_t system, std::uintptr_t object) {
     alignas(16) std::uintptr_t camera[2]{};  // weak_ptr<CharacterGhostCamera>
     reinterpret_cast<FactoryFn>(game + kGhostCameraFactory)(reinterpret_cast<void*>(system), camera, 0, identity,
                                                              param);
-    // Do not attach the local-player HUD builder here. Remote players have no local settings index;
-    // its damage, radar and weapon widgets use that index unchecked and crashed in 0.2.0.
+    if (!camera[0] || Expired(camera[1])) {
+        ReleaseWeak(camera[1]);
+        return false;
+    }
+    // Damage, radar and weapon widgets use an invalid local-settings index for remote players. The health
+    // gauge instead reads SoldierBase health directly; never call the full HUD builder at 7FE5D0 here.
+    if (healthValid) {
+        Log("Creating health bar for the player in slot %u", slot);
+        HudParam healthParam{reinterpret_cast<std::uintptr_t>(game + kHealthHudParamVtable), 0, object,
+                             reinterpret_cast<const wchar_t*>(game + kHealthHudLayout), {}, 0, 0};
+        AttachHud(camera[0], kHealthHudFactory, healthParam);
+    } else {
+        Log("Skipping health bar for slot %u: health or maximum health is invalid", slot);
+    }
+    // The name/health indicators enumerate everyone except their owner. Keep the local player as that owner,
+    // so the watched remote player stays in the list. This component already handles remote network records.
+    Log("Creating teammate name indicators for the spectator camera");
+    HudParam namesParam{reinterpret_cast<std::uintptr_t>(game + kNamesHudParamVtable), 0, viewer, nullptr, {}, 0, 0};
+    AttachHud(camera[0], kNamesHudFactory, namesParam);
     // The System's queue owns the camera. Releasing a strong reference here would destroy it before the flush.
     ReleaseWeak(camera[1]);
+    return true;
 }
 
 void Follow(std::uintptr_t system) {
@@ -262,15 +337,24 @@ void Follow(std::uintptr_t system) {
         else Log("Following the player in slot %u", target);
     } else if (target != kOwnCamera && target < 32 && !(createdThisDown & (1u << target))) {
         createdThisDown |= 1u << target;
-        Create(system, object);
-        Log("Following the player in slot %u (new camera)", target);
+        if (Create(system, object, roster.local.object, target))
+            Log("Following the player in slot %u (new camera with health/name HUD)", target);
+        else
+            Log("Could not create a camera for the player in slot %u", target);
     }
 }
 
 void SystemUpdate(void* system, float step, std::uint32_t frames) {
-    if (!stopped && system && !Guarded([&] { Follow(reinterpret_cast<std::uintptr_t>(system)); })) {
+    Fault fault;
+    if (!stopped && system && !Guarded([&] { Follow(reinterpret_cast<std::uintptr_t>(system)); }, &fault)) {
         stopped = true;
-        Log("STOPPED: a fault while following a player; the camera stays as it is until the game restarts");
+        const auto base = reinterpret_cast<std::uintptr_t>(game);
+        if (fault.instruction >= base && fault.instruction - base < kImageSize)
+            Log("STOPPED: fault %08lX at EDF+%llX while following a player; restart the game", fault.code,
+                static_cast<unsigned long long>(fault.instruction - base));
+        else
+            Log("STOPPED: fault %08lX at %llX while following a player; restart the game", fault.code,
+                static_cast<unsigned long long>(fault.instruction));
     }
     systemUpdate(system, step, frames);
 }
