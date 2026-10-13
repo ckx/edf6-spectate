@@ -53,7 +53,7 @@ polling are simpler. Add it only after M3 passes.
 
 The experimental 0.1.0 package includes Windows and Linux installers, a bundled
 EDFModLoader for fresh installs, notices and a SHA-256 file. Existing loaders and
-other mods are preserved. Packaging rebuilds and runs all game-code tests.
+other mods are preserved. Packaging rebuilds the plugin and creates the ZIP.
 
 The user requested an installable release before live testing. Publish it as an
 experimental prerelease with the missing live checks stated. M3 is still pending;

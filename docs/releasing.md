@@ -6,20 +6,13 @@ Keep experimental builds marked as prereleases until the live checklist in
 1. Fetch origin and integrate upstream changes. Update the version in
    `CMakeLists.txt`, the package readme and the README download link. Write
    `release-notes/<version>.md` with the actual validation status.
-2. Run `tests/install_test.py` with Python. It executes both installers on Linux
-   with PowerShell installed, or the Windows installer on Windows. These fixtures
-   check fresh installation, upgrades, loader preservation, uninstall, invalid
-   game paths and incomplete packages. They never use the actual game folder.
-3. Install `tools/requirements.txt` with pip's `--require-hashes` option. Set
-   `EDF6_GAME_DIR` to the game directory and run `python tools/package.py`.
-   It builds and runs all four native tests with the game DLL, then verifies the
-   ZIP contents and writes its checksum. On Linux, `SPECTATE_WINEPREFIX` can select
-   a separate test prefix. Do not use the game's Proton prefix for tests.
-4. Review the diff and commit. Push to `origin`, and wait for the Windows and
-   installer CI jobs to pass. CI has no game binary and says which tests skipped.
-5. Tag that commit `v<version>` and push the tag. Confirm that the packaged DLL
+2. Install `tools/requirements.txt` with pip's `--require-hashes` option and run
+   `python tools/package.py`. It builds the plugin, verifies the ZIP contents and
+   writes its checksum. It does not run tests or require a game installation.
+3. Review the diff, commit and push to `origin`. There is no CI workflow.
+4. Tag that commit `v<version>` and push the tag. Confirm that the packaged DLL
    matches that source tree; rerun packaging if any build input changed.
-6. Publish the ZIP and checksum with the release notes. For the initial release:
+5. Publish the ZIP and checksum with the release notes. For the initial release:
 
    ```sh
    gh release create v0.1.0 \
@@ -29,7 +22,7 @@ Keep experimental builds marked as prereleases until the live checklist in
      --notes-file release-notes/0.1.0.md
    ```
 
-7. Download the published assets and compare the checksum with the local ZIP.
+6. Download the published assets and compare the checksum with the local ZIP.
 
 Only the release assets contain DLLs. Do not commit game files, builds, logs,
 saves or local evidence. Packaging does not install anything in the game folder.

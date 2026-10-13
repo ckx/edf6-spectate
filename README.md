@@ -77,23 +77,21 @@ Windows requires Visual Studio 2022 with Desktop development with C++ and CMake:
 
 ## Package a release
 
-Python 3 and PowerShell are required in addition to the build tools. On Linux,
-`pwsh` exercises the Windows installer against temporary folders.
+Python 3 is required in addition to the build tools.
 
 ```sh
 python3 -m pip install --require-hashes -r tools/requirements.txt
-EDF6_GAME_DIR="/path/to/EARTH DEFENSE FORCE 6" python3 tools/package.py
+python3 tools/package.py
 ```
 
-On Windows, install those requirements with `python -m pip`, set `EDF6_GAME_DIR`,
-and run `python tools/package.py`. Packaging builds the plugin, runs every game
-test without skips, tests the installers, and creates
+On Windows, install those requirements with `python -m pip` and run
+`python tools/package.py`. Packaging builds the plugin and creates
 `release/EDF6Spectate-<version>.zip` and its `.zip.sha256`. It downloads the pinned
 official EDFModLoader and reproduces the same forwarder fix as EDF6Coop, checking
 both the input and output hashes. No sibling checkout is needed.
 
-See `docs/releasing.md` for the tagging and publishing procedure. GitHub CI checks
-MSVC and the installers; its two game-code tests report skipped without `EDF.dll`.
+See `docs/releasing.md` for the tagging and publishing procedure. Packaging does
+not run tests, and there is no GitHub CI workflow.
 
 ## Licenses
 
