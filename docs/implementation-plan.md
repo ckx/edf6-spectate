@@ -68,11 +68,18 @@ a stable release follows successful live verification. See `releasing.md`.
 ## M6. Spectated teammate's combat HUD
 
 The user requested the full combat HUD after the successful 0.1.1 camera retry.
-Version 0.2.0 attaches the game's native HUD to each new teammate camera using the
-same builder as normal player creation. The original local camera and its HUD are
-retained for revival. No manual overlay or new network messages are added.
+Version 0.2.0 attached the native local-player HUD builder to each teammate camera.
+The online attempt crashed in the damage HUD after setup had already faulted.
+Version 0.2.1 removes that attachment and restores the working camera-only path.
 
-Live checks still needed: health, ammo and reload changes; different classes and
-weapon layouts; radar and crosshair; return on revival; repeated spectating;
-disconnects and mission transitions. Remote values are only as current as the
-game's own copy of that teammate.
+Before another HUD build, separate the viewed teammate's combat state from the
+local viewer's settings. Damage, radar and weapon widgets read a local-player
+index that is invalid for remote players. Check constructor and update paths,
+including indirect calls, before enabling any widget. A caught construction fault
+cannot roll back registered objects. Evidence and exact addresses are in
+`research.md`.
+
+After those dependencies are resolved, live checks still needed: health, ammo and
+reload changes; different classes and weapon layouts; radar and crosshair; return
+on revival; repeated spectating; disconnects and mission transitions. Remote
+values are only as current as the game's own copy of that teammate.

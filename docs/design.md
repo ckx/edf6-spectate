@@ -22,12 +22,10 @@ camera.
   nothing, so the game's own camera change goes through.
 - Nothing is sent over the network. Each player's plugin acts on its own view only.
   Players without the plugin see no difference.
-- The spectator camera gets the followed teammate's native combat HUD, including
-  health, weapons, ammo, class gauges, radar and crosshair. It reads the game's
-  local copy of that teammate. No additional state is sent over the network.
-- Returning to the local camera also returns its original HUD. This replaces the
-  previous camera-only scope at the user's request. HUD behavior still needs a
-  live check, including whether remote ammo and class gauges stay accurate.
+- Teammate combat HUD replication is disabled in 0.2.1. The 0.2.0 native HUD
+  attachment crashed because its widgets assume local-player data. Full combat
+  HUD support remains in scope, but needs a different implementation.
+- Returning to the local camera returns its original HUD.
 
 Not in the prototype: a button to choose whom to watch, a free camera, watching while
 alive, and offline split screen. A cycle button is the next decision for the user
@@ -53,10 +51,6 @@ Each frame, before calling the game's `System::Update`, it:
    `0x11932F0` does), or, for a teammate without one, creates a camera through the
    game's factory with the same InitParam `create_remote_camera` builds. The game's
    flush in the `System::Update` that follows makes the new camera current.
-6. For a newly created teammate camera, before releasing the factory's weak
-   reference, attach its player's HUD with `0x7FE5D0`, as normal player creation
-   does at `0x5A5306`. The camera owns the HUD objects in its list at `+0x208`.
-   Reusing that camera also reuses its HUD; no local-player binding is changed.
 
 The plugin keeps no game pointers between frames. Its only state is a bit per slot
 for cameras it asked for during the current downed period, so a camera that fails to
@@ -69,11 +63,12 @@ The camera factory returns a weak reference; the System's queue owns the camera.
 The plugin releases only that weak reference. Version 0.1.0 incorrectly released a
 strong reference and crashed on its first live camera activation. Version 0.1.1
 corrects this. The user confirmed that 0.1.1 worked online; its log also recorded
-following a teammate and returning to the player's own camera. The new HUD path
-in 0.2.0 has not yet been verified online.
+following a teammate and returning to the player's own camera. Version 0.2.1
+restores that camera-only path after the HUD addition in 0.2.0 crashed online.
 
 Every read and call runs in `Guarded`. A fault stops the plugin for the rest of the
-session and logs it; the game call is not retried.
+session and logs it; the game call is not retried. This cannot undo partial game
+object creation or make those objects safe for later native updates.
 
 ## Installation and refusal
 
@@ -86,7 +81,7 @@ before the write refuses with nothing changed. The plugin then stays loaded.
 
 - EDF6Coop: no shared code sites. Its player sync and hit authority do not touch
   cameras. The user reported successful camera following with 0.1.1 in the local
-  installation, which also has EDF6Coop. HUD compatibility remains unverified.
+  installation, which also has EDF6Coop. The unsafe HUD attachment is removed.
 - Other mods that change any hashed range make the plugin refuse.
 - Every hashed range matched in the running game on 2026-10-11, with EDF6Coop and
   Lootmaster's Patcher installed.

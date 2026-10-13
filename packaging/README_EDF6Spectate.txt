@@ -1,15 +1,15 @@
-EDF6 Spectate 0.2.0 - experimental
+EDF6 Spectate 0.2.1 - experimental
 
-Camera following worked in the user's online retry of 0.1.1. Version 0.2.0 adds
-the teammate's native combat HUD. The HUD still needs an online check.
+Version 0.2.1 removes the combat HUD attachment that crashed in 0.2.0 and restores
+the camera behavior that worked online in 0.1.1. Full combat HUD support remains
+planned. Do not use 0.2.0.
 
 HOW IT WORKS
 When you go down online, the camera follows a living teammate. If that player goes
 down or leaves, it selects another. Reviving, or everyone going down, returns your
-camera and original HUD. The spectator camera gets the teammate's health,
-weapons, ammo, class gauges, radar and crosshair through the game's HUD builder.
-Remote values depend on the game's own local copy of that player. Other players
-do not need this mod, and no extra network messages are sent.
+camera and original HUD. Spectating is camera-only; teammate HUD replication is
+disabled because native HUD widgets require local-player data. Other players do
+not need this mod, and no extra network messages are sent.
 There is no manual player-switching button yet. Offline and split screen are left
 alone. Supports the Steam EDF.dll from the January 2025 update only.
 

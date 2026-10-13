@@ -6,8 +6,8 @@ missions). The sampler read
 process memory through `/proc/<pid>/mem` under Proton and wrote nothing. The first
 live run of 0.1.0 on 2026-10-12 crashed on entering spectate; see the correction
 below. The user reported that 0.1.1 worked online. The log confirms following a
-teammate and returning to the local camera. Full combat HUD support is new in
-0.2.0 and has not yet been checked online.
+teammate and returning to the local camera. The 0.2.0 combat HUD attempt crashed
+online; 0.2.1 removes its native HUD attachment. See the crash analysis below.
 
 ## Supported image
 
@@ -25,9 +25,6 @@ functions. Any mismatch refuses installation before anything is written.
 | `System::Update` call in `Application::Update` | `0x705715` | `0x5` | `0xF9744FB4304DB3F6` |
 | `System::Update` | `0x1198DA0` | `0x9FB` | `0x7F0564B7A3BF2724` |
 | CharacterGhostCamera factory | `0x82B40` | `0x1DC` | `0x6F6DB55CC4005B3C` |
-| Camera combat HUD builder | `0x7FE5D0` | `0x988` | `0x30B0F56AE0009F97` |
-| Normal player camera and HUD creation | `0x5A4F40` | `0x47C` | `0x43236D76F920E27E` |
-| Camera HUD ownership transfer | `0x7FF390` | `0x9A` | `0x7B2D65E7F57F7623` |
 | View camera switch | `0x1193FA0` | `0x18D` | `0xF859E0B97E448F2F` |
 | `weak_from_this` | `0x1198950` | `0x9C` | `0x580BFED010D5E37E` |
 | Camera flush | `0x1195A80` | `0x159` | `0xFAAA5CBBF9469555` |
@@ -214,8 +211,9 @@ the complete disconnect, class and mission-transition checklist.
 ## Combat HUD attached to the spectator camera
 
 Scope: the user requested the full teammate combat HUD after the successful
-camera retry. Version 0.2.0 uses the native player-HUD builder, with no additional
-network messages or new overlay.
+camera retry. Version 0.2.0 used the native player-HUD builder, with no additional
+network messages or new overlay. This approach was removed in 0.2.1 after the
+crash below. Camera ownership alone does not make these HUDs safe for remote players.
 
 Observed in the supported game code:
 
@@ -240,7 +238,8 @@ Observed in the supported game code:
   from that player. Rebinding the local widget alone would not rebuild that layout.
 - The HUD wrapper stores its camera at `+0x18`, populated by `0x11D4320`.
   `0x8168B0` checks that camera's visibility and enables its UI widgets for update.
-  HUD drawing and lifetime stay under the game camera's existing ownership.
+  Camera ownership retains the HUDs. This does not prove that a partially
+  constructed UI object is removed from the game's update registry after a fault.
 - None of the three additional verified code ranges has PE base relocations.
 
 A read-only `/proc/<pid>/mem` sample of the running 0.1.1 session found the current
@@ -248,20 +247,65 @@ local camera with 11 HUD objects and the existing teammate camera with zero. Bot
 were CharacterGhostCamera instances. The sample is stored in
 `local/hud-research/live-camera-huds.json`; the running process was not modified.
 
-Implementation: after creating a teammate camera, call `0x7FE5D0` once with that
-camera and its target, before releasing the factory's weak reference. The queued
+Version 0.2.0 implementation: after creating a teammate camera, call `0x7FE5D0`
+once with that camera and its target, before releasing the factory's weak reference. The queued
 camera still has the System's strong owner. Reusing the camera reuses its HUD.
 The original local camera and its widgets are untouched, so returning to that
 camera also returns its HUD through the normal camera path.
 
-Still unverified: remote ammo/reload and class-gauge accuracy, all class layouts,
-crosshair behavior, and HUD cleanup after a teammate disconnect or mission end.
-This reads the game's remote-player copy; it does not replicate any state the
-game itself does not send. A live HUD check is required.
+### Online HUD crash and withdrawal in 0.2.1
+
+The supplied `EDF6Spectate-clam.log` identifies 0.2.0, installed at 14:18:18,
+and records `STOPPED: a fault while following a player` at 14:29:05. There is no
+successful camera-follow log entry. Both supplied co-op logs contain the same
+crash at 2026-10-13 14:29:05.729, at `EDF+0x8225D7`, with stack callers
+`0x820543`, `0x119D74B`, `0x7058FC`, `0x11A3009`, `0x70341C`, `0x6FF47F`
+and `0x3E639`. These are two copies of the same recorded crash, not evidence of
+two separate failures. Copies are preserved in `local/crash-clam-0.2.0/`.
+
+The supported game binary establishes:
+
+- `HUiHudDamage` has vtable `0x17FC970`; its update slot is `0x820520`.
+  That update calls `0x8224A0` at `0x82053E`.
+- At `0x8225C8`, the damage refresh reads the followed SoldierBase's 32-bit
+  index at `+0x338`. It zero-extends that value, multiplies it by `0x2800`,
+  then reads a settings entry from `*(EDF+0x20B2890) + index*0x2800 + 0x334`.
+  There is no bounds or remote-player check before the read at `0x8225D7`.
+- The logged `rax = 0xFFFFFFFF`, `rcx = 0x27FFFFFFD800` and
+  `rdx = 0x1E50D2FA130` reproduce the reported fault address exactly:
+  `0x1E50D2FA130 + 0xFFFFFFFF*0x2800 + 0x334 = 0x29E50D2F7C64`.
+  This is an invalid local settings index, not a camera reference-count failure.
+- Construction also calls the same damage refresh at `0x81DF8B`.
+  It is a plausible source of the earlier caught fault, but the spectator log
+  did not capture that fault's instruction address. Do not claim it is confirmed.
+- This assumption appears in other HUD code. Radar update reads `player+0x338`
+  at `0x82B62B` and uses it unchecked to index settings at `+0x6E5C`.
+  Weapon HUD code at `0x803B74` reads the same index and uses `index*0x2800`
+  to read settings at `+0x326` at `0x803B82`. Skipping the damage widget alone
+  would not address these other paths.
+
+Inference from the two logs and native code: the builder faulted after registering
+UI state. Guarded stopped future spectator calls, but did not unwind or remove
+that state. The game's later UI update then reached the damage widget and crashed
+outside the spectator guard. The exact first fault and full partially created
+object set cannot be recovered from these logs.
+
+Version 0.2.1 removes the native combat HUD builder call, its function type and
+its three additional code checks. The remaining runtime is the 0.1.1 camera path,
+with a comment explaining why the HUD builder must not be called for a teammate.
+No game settings, player indices or native HUD code are patched. Building and
+packaging do not establish that a fresh online attempt has passed.
+
+Full combat HUD work remains open. A replacement must separate the viewed
+teammate's combat data from the local viewer's settings, and inspect constructors
+and updates before attaching widgets. Remote ammo/reload and class-gauge accuracy,
+all class layouts, crosshair behavior and cleanup after disconnects or mission
+end still need live checks. This mod sends no extra state over the network.
 
 ## Open questions
 
-- Live combat HUD check, including remote ammo, reloads and class gauges. The basic
+- Replace the unsafe local-player HUD builder before further HUD play checks.
+  Remote ammo, reloads and class gauges also need verification. The basic
   0.1.1 camera follow and return were confirmed by the user and log.
 - Whether a player can stay down until the mission ends, or bleeds out, and what
   happens to the object then.
