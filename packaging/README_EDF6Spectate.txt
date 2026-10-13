@@ -1,7 +1,8 @@
-EDF6 Spectate 0.1.0 - experimental
+EDF6 Spectate 0.1.1 - experimental
 
-Online behavior has not been tested. The automated Wine tests passed, including
-tests against the supported EDF.dll. This does not verify a live online mission.
+Version 0.1.0 crashed when first entering spectate online. Version 0.1.1 corrects
+the camera ownership error that could destroy the new camera before activation.
+A successful online retry is still pending.
 
 HOW IT WORKS
 When you go down online, the camera follows a living teammate. If that player goes

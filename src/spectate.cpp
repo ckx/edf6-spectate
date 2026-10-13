@@ -54,7 +54,7 @@ constexpr int kMaxNodes = 64;
 constexpr std::size_t kMaxPlayers = 8;
 
 using SystemUpdateFn = void (*)(void* system, float step, std::uint32_t frames);
-using FactoryFn = void* (*)(void* system, void* out, std::uint32_t view, const float* matrix, void* param);
+using FactoryFn = void* (*)(void* system, void* weakOut, std::uint32_t view, const float* matrix, void* param);
 using WeakFromThisFn = void* (*)(void* camera, void* out);
 using SetViewCameraFn = void (*)(void* view, void* weak);
 using IsOnlineModeFn = bool (*)();
@@ -196,13 +196,10 @@ std::uintptr_t FindCamera(std::uintptr_t view, std::uintptr_t object) {
     return 0;
 }
 
-// Drops one strong reference, as the game's inlined shared_ptr destructor does.
-void Release(std::uintptr_t control) {
-    if (!control || InterlockedDecrement(reinterpret_cast<volatile LONG*>(control + kUses)) != 0) return;
-    const std::uintptr_t vtable = Ptr(control);
-    reinterpret_cast<ControlFn>(Ptr(vtable))(control);
-    if (InterlockedDecrement(reinterpret_cast<volatile LONG*>(control + kWeaks)) == 0)
-        reinterpret_cast<ControlFn>(Ptr(vtable + 8))(control);
+// The factory returns a weak_ptr. Match create_remote_camera at CCF2E: release only +0xC, never the queue's owner.
+void ReleaseWeak(std::uintptr_t control) {
+    if (!control || InterlockedDecrement(reinterpret_cast<volatile LONG*>(control + kWeaks)) != 0) return;
+    reinterpret_cast<ControlFn>(Ptr(Ptr(control) + 8))(control);
 }
 
 // A ghost camera following `object` on view 0, made as the game's create_remote_camera (CCCA0) makes one. The System
@@ -213,11 +210,11 @@ void Create(std::uintptr_t system, std::uintptr_t object) {
     const auto vtable = reinterpret_cast<std::uintptr_t>(game + kGhostCameraParamVtable);
     std::memcpy(param, &vtable, sizeof(vtable));
     std::memcpy(param + kParamTarget, &object, sizeof(object));
-    alignas(16) std::uintptr_t camera[2]{};  // shared_ptr<CharacterGhostCamera>
+    alignas(16) std::uintptr_t camera[2]{};  // weak_ptr<CharacterGhostCamera>
     reinterpret_cast<FactoryFn>(game + kGhostCameraFactory)(reinterpret_cast<void*>(system), camera, 0, identity,
                                                              param);
-    // The System holds its own reference.
-    Release(camera[1]);
+    // The System's queue owns the camera. Releasing a strong reference here would destroy it before the flush.
+    ReleaseWeak(camera[1]);
 }
 
 void Follow(std::uintptr_t system) {

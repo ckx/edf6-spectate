@@ -3,14 +3,15 @@
 An EDFModLoader plugin for EARTH DEFENSE FORCE 6. In an online room, a downed player
 watches a standing teammate through the game's follow camera until revived.
 
-Status: experimental prerelease. Built and tested against the game's code under
-Wine; online behavior has not been tested.
+Status: experimental prerelease. Version 0.1.0 crashed on its first live spectate
+attempt. Version 0.1.1 corrects a camera-ownership bug; a successful online retry
+is still pending.
 
 ## Install
 
-Download `EDF6Spectate-0.1.0.zip` from the experimental release:
+Download `EDF6Spectate-0.1.1.zip` from the experimental release:
 
-https://github.com/ckx/edf6-spectate/releases/tag/v0.1.0
+https://github.com/ckx/edf6-spectate/releases/tag/v0.1.1
 
 Close EDF6, back up your saves, and extract the whole ZIP to a separate folder.
 Use the release ZIP, not GitHub's source-code archives.

@@ -5,7 +5,7 @@
 Static analysis of the camera system, the player map and the downed state, and a
 read-only sample of a live four-player room. Evidence is in `research.md`.
 
-## M2. Automatic follow prototype (done, not played)
+## M2. Automatic follow prototype
 
 The `System::Update` call hook, the roster read, `NextTarget`, camera reuse and
 creation through the game's factory, and refusal on any unexpected byte.
@@ -22,6 +22,10 @@ Camera creation, the roster walk and the live hand-over cannot run outside the g
 (the factory allocates through the game's heap and builds scene objects).
 
 ## M3. Live check in an online room (next)
+
+The first live attempt with 0.1.0 crashed when activating the new camera. Version
+0.1.1 corrects the weak-reference release, as documented in `research.md`. The
+checklist below still needs a successful run.
 
 Install `out/EDF6Spectate.dll` into `Mods/Plugins` with the game closed, back up
 saves, and play an online mission with at least two other players. Check:

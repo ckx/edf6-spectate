@@ -56,6 +56,11 @@ the System tears the views down at the end of the mission, and are reused if the
 player goes down again. The game updates only a view's current camera, so the extra
 cameras cost nothing while unused.
 
+The camera factory returns a weak reference; the System's queue owns the camera.
+The plugin releases only that weak reference. Version 0.1.0 incorrectly released a
+strong reference and crashed on its first live camera activation. Version 0.1.1
+corrects this, but a successful online handover has not yet been verified.
+
 Every read and call runs in `Guarded`. A fault stops the plugin for the rest of the
 session and logs it; the game call is not retried.
 

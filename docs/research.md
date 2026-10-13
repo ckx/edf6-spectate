@@ -3,8 +3,9 @@
 Static analysis of the supported EDF.dll on 2026-10-11, plus read-only sampling of a
 running game in four-player online missions on the same date (two hours, three
 missions). The sampler read
-process memory through `/proc/<pid>/mem` under Proton and wrote nothing. No build
-of the plugin has run inside the game yet.
+process memory through `/proc/<pid>/mem` under Proton and wrote nothing. The first
+live run of 0.1.0 on 2026-10-12 crashed on entering spectate; see the correction
+below. Successful online following and revival remain unverified.
 
 ## Supported image
 
@@ -69,12 +70,12 @@ Observed:
   `0x1768C10`) following the local player. Views 1 to 3 were empty.
 - Player creation (`0x5A4F40`) builds the player and a `CharacterGhostCamera` for it
   through the factory `0x82B40`, with the view index equal to the player index.
-- Factory `0x82B40(System* rcx, shared_ptr* out rdx, uint32 view r8d,
+- Factory `0x82B40(System* rcx, weak_ptr* out rdx, uint32 view r8d,
   const Matrix* r9, InitParam* [rsp+0x20])`: fills the InitParam's base fields
   (matrix at `+0x10`, scene at `+0x50`, view at `+0x58`, viewport at `+0x5C`, owner
-  slot at `+0x70`), allocates `0xC20` bytes, runs the constructor, queues the camera on
+  output shared-pointer address at `+0x70`), allocates `0xC20` bytes, runs the constructor, queues the camera on
   `System+0x4C0` (`0x1195990`, under the lock at `System+0x308`) and returns a
-  `shared_ptr<CharacterGhostCamera>` in `out`. Matrix and InitParam must be 16-byte
+  `weak_ptr<CharacterGhostCamera>` in `out`. Matrix and InitParam must be 16-byte
   aligned (`movaps`).
 - The InitParam vtable is `0x1762168` (`CharacterGhostCamera::InitParam`). Its
   `+0x80` is the object to follow. Callers fill only the vtable and `+0x80`; the
@@ -173,6 +174,35 @@ off the game's new camera.
 
 `IsOnlineMode` (`0x1B5DF0`) reads the session mode table at `*(EDF+0x20B2890)`. See
 the AutoLoot research notes for the layout. The live sample returned online.
+
+## First live crash and ownership correction
+
+On 2026-10-12, the user went down in an online mission and the game immediately
+closed. The spectator log recorded `Following the player in slot 1 (new camera)`
+at 19:04:55. The co-op crash log recorded an access violation at `EDF+0x11940CD`
+at 19:04:55.621, with callers `0x1195B81`, `0x1198F66`, and Spectate's update hook.
+The failing instruction is the new camera's activation call through vtable slot 6.
+The recorded vtable address was in the heap, rather than EDF.dll. Logs and the
+installed binary are preserved under `local/crash-20261013T020534Z/` and are not
+committed.
+
+The initial factory return-type analysis above was wrong. Rechecking its code:
+
+- `0x82C69` and `0x82C6C` write the object and control block to the return buffer.
+- `0x82C70` increments the control block's weak count at `+0xC`.
+- `0x82C76` releases the temporary strong reference at `+0x8`.
+- The native debug command releases this result at `0xCCF2E`, decrementing only
+  `+0xC` and calling the block-deletion function at vtable `+0x8` if it reaches zero.
+
+Version 0.1.0 instead decremented the strong count after the factory returned.
+That can destroy the queued camera before the flush activates it. This is a
+confirmed ownership bug and explains the observed invalid activation call; no
+memory dump was available to inspect the destroyed object directly.
+
+Version 0.1.1 releases only the returned weak reference, matching the native caller.
+The factory and caller are already in the plugin's verified code ranges. This
+correction still needs an online retry; it does not establish that later camera
+updates, revival or mission transitions work.
 
 ## Open questions
 
