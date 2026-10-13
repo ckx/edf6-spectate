@@ -3,15 +3,15 @@
 An EDFModLoader plugin for EARTH DEFENSE FORCE 6. In an online room, a downed player
 watches a standing teammate through the game's follow camera until revived.
 
-Status: experimental prerelease. Version 0.1.0 crashed on its first live spectate
-attempt. Version 0.1.1 corrects a camera-ownership bug; a successful online retry
-is still pending.
+Status: experimental. Camera following worked in the user's online retry of
+0.1.1. Version 0.2.0 adds the spectated teammate's native combat HUD and still
+needs an online HUD check.
 
 ## Install
 
-Download `EDF6Spectate-0.1.1.zip` from the experimental release:
+Download `EDF6Spectate-0.2.0.zip` from the experimental release:
 
-https://github.com/ckx/edf6-spectate/releases/tag/v0.1.1
+https://github.com/ckx/edf6-spectate/releases/tag/v0.2.0
 
 Close EDF6, back up your saves, and extract the whole ZIP to a separate folder.
 Use the release ZIP, not GitHub's source-code archives.
@@ -41,6 +41,9 @@ DLL; the loader, other mods and logs remain.
 - Going down online switches your view to the standing teammate with the lowest
   slot. If they go down or leave, it moves to the next one.
 - Being revived, or every teammate being down, returns your own camera.
+- The followed teammate's native combat HUD is attached to their spectator
+  camera. Your original HUD returns with your own camera. Remote ammo and class
+  gauge accuracy still need a live check; no extra network messages are sent.
 - Offline play and split screen are left alone.
 - Nothing is sent to other players. They do not need the plugin.
 - There is no manual button to switch teammates yet.

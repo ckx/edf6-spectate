@@ -11,6 +11,7 @@ namespace spectate {
 namespace {
 
 constexpr std::uint32_t kGhostCameraFactory = 0x82B40;  // System's factory for CharacterGhostCamera
+constexpr std::uint32_t kBuildCombatHud = 0x7FE5D0;    // (SceneCamera*, GameObjectBase* player), as at 5A5306
 constexpr std::uint32_t kWeakFromThis = 0x1198950;      // (SceneCamera*, weak_ptr* out)
 constexpr std::uint32_t kSetViewCamera = 0x1193FA0;     // (View*, weak_ptr<SceneCamera> by value)
 constexpr std::uint32_t kIsOnlineMode = 0x1B5DF0;       // the mission script's bool IsOnlineMode()
@@ -55,6 +56,7 @@ constexpr std::size_t kMaxPlayers = 8;
 
 using SystemUpdateFn = void (*)(void* system, float step, std::uint32_t frames);
 using FactoryFn = void* (*)(void* system, void* weakOut, std::uint32_t view, const float* matrix, void* param);
+using BuildCombatHudFn = void (*)(void* camera, void* player);
 using WeakFromThisFn = void* (*)(void* camera, void* out);
 using SetViewCameraFn = void (*)(void* view, void* weak);
 using IsOnlineModeFn = bool (*)();
@@ -72,6 +74,9 @@ constexpr Code kCode[] = {
     {"System::Update call", kSystemUpdateCall, 0x5, 0xF9744FB4304DB3F6},
     {"System::Update", kSystemUpdate, 0x9FB, 0x7F0564B7A3BF2724},
     {"CharacterGhostCamera factory", kGhostCameraFactory, 0x1DC, 0x6F6DB55CC4005B3C},
+    {"camera combat HUD builder", kBuildCombatHud, 0x988, 0x30B0F56AE0009F97},
+    {"player camera and HUD creation", 0x5A4F40, 0x47C, 0x43236D76F920E27E},
+    {"camera HUD ownership transfer", 0x7FF390, 0x9A, 0x7B2D65E7F57F7623},
     {"view camera switch", kSetViewCamera, 0x18D, 0xF859E0B97E448F2F},
     {"weak_from_this", kWeakFromThis, 0x9C, 0x580BFED010D5E37E},
     {"camera flush", 0x1195A80, 0x159, 0xFAAA5CBBF9469555},
@@ -213,6 +218,11 @@ void Create(std::uintptr_t system, std::uintptr_t object) {
     alignas(16) std::uintptr_t camera[2]{};  // weak_ptr<CharacterGhostCamera>
     reinterpret_cast<FactoryFn>(game + kGhostCameraFactory)(reinterpret_cast<void*>(system), camera, 0, identity,
                                                              param);
+    // Normal player creation attaches its combat HUD to the newly queued camera at 5A5306. Build it once for
+    // this teammate too; the camera owns it, including its weapon/class layout. The local camera keeps its HUD.
+    if (camera[0] && !Expired(camera[1]))
+        reinterpret_cast<BuildCombatHudFn>(game + kBuildCombatHud)(reinterpret_cast<void*>(camera[0]),
+                                                                 reinterpret_cast<void*>(object));
     // The System's queue owns the camera. Releasing a strong reference here would destroy it before the flush.
     ReleaseWeak(camera[1]);
 }
@@ -261,7 +271,7 @@ void Follow(std::uintptr_t system) {
     } else if (target != kOwnCamera && target < 32 && !(createdThisDown & (1u << target))) {
         createdThisDown |= 1u << target;
         Create(system, object);
-        Log("Following the player in slot %u (new camera)", target);
+        Log("Following the player in slot %u (new camera with combat HUD)", target);
     }
 }
 

@@ -21,11 +21,13 @@ Automated checks, all passing under Wine with the game's EDF.dll:
 Camera creation, the roster walk and the live hand-over cannot run outside the game
 (the factory allocates through the game's heap and builds scene objects).
 
-## M3. Live check in an online room (next)
+## M3. Live check in an online room (partly verified)
 
 The first live attempt with 0.1.0 crashed when activating the new camera. Version
 0.1.1 corrects the weak-reference release, as documented in `research.md`. The
-checklist below still needs a successful run.
+user confirmed that 0.1.1 worked online. Its log recorded a camera switch at
+19:34:30 and a return at 19:35:43 on 2026-10-12. This establishes basic following
+and return, not the complete checklist below.
 
 Install `out/EDF6Spectate.dll` into `Mods/Plugins` with the game closed, back up
 saves, and play an online mission with at least two other players. Check:
@@ -62,3 +64,15 @@ other mods are preserved. Packaging rebuilds the plugin and creates the ZIP.
 The user requested an installable release before live testing. Publish it as an
 experimental prerelease with the missing live checks stated. M3 is still pending;
 a stable release follows successful live verification. See `releasing.md`.
+
+## M6. Spectated teammate's combat HUD
+
+The user requested the full combat HUD after the successful 0.1.1 camera retry.
+Version 0.2.0 attaches the game's native HUD to each new teammate camera using the
+same builder as normal player creation. The original local camera and its HUD are
+retained for revival. No manual overlay or new network messages are added.
+
+Live checks still needed: health, ammo and reload changes; different classes and
+weapon layouts; radar and crosshair; return on revival; repeated spectating;
+disconnects and mission transitions. Remote values are only as current as the
+game's own copy of that teammate.

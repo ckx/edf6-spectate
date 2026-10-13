@@ -5,7 +5,9 @@ running game in four-player online missions on the same date (two hours, three
 missions). The sampler read
 process memory through `/proc/<pid>/mem` under Proton and wrote nothing. The first
 live run of 0.1.0 on 2026-10-12 crashed on entering spectate; see the correction
-below. Successful online following and revival remain unverified.
+below. The user reported that 0.1.1 worked online. The log confirms following a
+teammate and returning to the local camera. Full combat HUD support is new in
+0.2.0 and has not yet been checked online.
 
 ## Supported image
 
@@ -23,6 +25,9 @@ functions. Any mismatch refuses installation before anything is written.
 | `System::Update` call in `Application::Update` | `0x705715` | `0x5` | `0xF9744FB4304DB3F6` |
 | `System::Update` | `0x1198DA0` | `0x9FB` | `0x7F0564B7A3BF2724` |
 | CharacterGhostCamera factory | `0x82B40` | `0x1DC` | `0x6F6DB55CC4005B3C` |
+| Camera combat HUD builder | `0x7FE5D0` | `0x988` | `0x30B0F56AE0009F97` |
+| Normal player camera and HUD creation | `0x5A4F40` | `0x47C` | `0x43236D76F920E27E` |
+| Camera HUD ownership transfer | `0x7FF390` | `0x9A` | `0x7B2D65E7F57F7623` |
 | View camera switch | `0x1193FA0` | `0x18D` | `0xF859E0B97E448F2F` |
 | `weak_from_this` | `0x1198950` | `0x9C` | `0x580BFED010D5E37E` |
 | Camera flush | `0x1195A80` | `0x159` | `0xFAAA5CBBF9469555` |
@@ -200,14 +205,64 @@ confirmed ownership bug and explains the observed invalid activation call; no
 memory dump was available to inspect the destroyed object directly.
 
 Version 0.1.1 releases only the returned weak reference, matching the native caller.
-The factory and caller are already in the plugin's verified code ranges. This
-correction still needs an online retry; it does not establish that later camera
-updates, revival or mission transitions work.
+The factory and caller are already in the plugin's verified code ranges. The user
+reported a successful online retry. The installed 0.1.1 log recorded following
+slot 1 at 19:34:30, returning to the player's own camera at 19:35:43, and another
+spectate at 20:01:05 on 2026-10-12. This confirms basic following and return, not
+the complete disconnect, class and mission-transition checklist.
+
+## Combat HUD attached to the spectator camera
+
+Scope: the user requested the full teammate combat HUD after the successful
+camera retry. Version 0.2.0 uses the native player-HUD builder, with no additional
+network messages or new overlay.
+
+Observed in the supported game code:
+
+- Normal player creation `0x5A4F40` calls the camera factory at `0x5A5278`, locks
+  its returned weak reference and takes the camera object into `r15` at
+  `0x5A52B0`. It then calls `0x7FE5D0` at `0x5A5306` with `rcx = camera` and
+  `rdx = player`. The return value is unused.
+- `0x7FE5D0(SceneCamera*, GameObjectBase*)` casts the player to SoldierBase and
+  builds the HUD objects through eight native factories. These include
+  `HuiHudWeaponObject`, the health/power gauge and radar UI objects, crosshairs,
+  damage display, follower durability, rescue text, multiplayer status and chat.
+  It reads the camera's view index at `+0x60` for the UI layout.
+- The weapon HUD factory `0x7FDA40` puts the camera into the InitParam at `+8`.
+  After constructing the HUD, it moves a strong reference into the camera's HUD
+  list at `+0x208` through `0x7FF390`, called at `0x7FDB64`. That helper moves the
+  object/control pair into a list node and zeros the source pair. The wrapper's
+  return value is a weak reference, which the builder releases at `+0xC`.
+- `HUiHudBase` construction at `0x815810` copies the selected player's weak
+  reference into the widget's `+0x778/+0x780`. Weapon update `0x831A40`, power
+  gauge update `0x826250` and radar update `0x82B4D0` lock that reference before
+  reading the player. The weapon constructor chooses its layout and weapon slots
+  from that player. Rebinding the local widget alone would not rebuild that layout.
+- The HUD wrapper stores its camera at `+0x18`, populated by `0x11D4320`.
+  `0x8168B0` checks that camera's visibility and enables its UI widgets for update.
+  HUD drawing and lifetime stay under the game camera's existing ownership.
+- None of the three additional verified code ranges has PE base relocations.
+
+A read-only `/proc/<pid>/mem` sample of the running 0.1.1 session found the current
+local camera with 11 HUD objects and the existing teammate camera with zero. Both
+were CharacterGhostCamera instances. The sample is stored in
+`local/hud-research/live-camera-huds.json`; the running process was not modified.
+
+Implementation: after creating a teammate camera, call `0x7FE5D0` once with that
+camera and its target, before releasing the factory's weak reference. The queued
+camera still has the System's strong owner. Reusing the camera reuses its HUD.
+The original local camera and its widgets are untouched, so returning to that
+camera also returns its HUD through the normal camera path.
+
+Still unverified: remote ammo/reload and class-gauge accuracy, all class layouts,
+crosshair behavior, and HUD cleanup after a teammate disconnect or mission end.
+This reads the game's remote-player copy; it does not replicate any state the
+game itself does not send. A live HUD check is required.
 
 ## Open questions
 
-- Live check of the plugin itself: that a created camera follows a remote player
-  smoothly, aims where that player aims, and hands back cleanly on revive.
+- Live combat HUD check, including remote ammo, reloads and class gauges. The basic
+  0.1.1 camera follow and return were confirmed by the user and log.
 - Whether a player can stay down until the mission ends, or bleeds out, and what
   happens to the object then.
 - Whether NPC allies appear in the TeamManager map. The plugin only takes objects
