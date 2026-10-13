@@ -3,8 +3,37 @@
 An EDFModLoader plugin for EARTH DEFENSE FORCE 6. In an online room, a downed player
 watches a standing teammate through the game's follow camera until revived.
 
-Status: prototype. Built and tested against the game's code under Wine; not yet run
-in a live room.
+Status: experimental prerelease. Built and tested against the game's code under
+Wine; online behavior has not been tested.
+
+## Install
+
+Download `EDF6Spectate-0.1.0.zip` from the experimental release:
+
+https://github.com/ckx/edf6-spectate/releases/tag/v0.1.0
+
+Close EDF6, back up your saves, and extract the whole ZIP to a separate folder.
+Use the release ZIP, not GitHub's source-code archives.
+
+- **Windows:** double-click `INSTALL.bat`. It finds EDF6 in your Steam libraries
+  or asks for the game folder.
+- **Linux / Proton:** run `bash install.sh` in the extracted folder. If needed,
+  pass the game folder as its argument. Add `WINEDLLOVERRIDES="winmm=n,b"` to the
+  Steam launch command. For an empty launch-options field, use
+  `WINEDLLOVERRIDES="winmm=n,b" %command%`. Merge existing DLL overrides and keep
+  your other launch options.
+
+The ZIP includes EDFModLoader for fresh installations. Installers preserve an
+existing `winmm.dll`, other mods, settings and launch options. If `ModLoader.ini`
+exists, it must permit loading plugins. EDF6Coop is not required.
+
+Start from Steam as usual. Check `Mods/Plugins/EDF6Spectate.log` for `Installed:`.
+For the first online test, go down, watch a teammate move, and get revived. Camera
+handover, disconnects and mission transitions still need live verification.
+
+Upgrade by running the newer installer with the game closed. Uninstall with
+`UNINSTALL.bat` or `bash install.sh --uninstall`. This removes only the spectator
+DLL; the loader, other mods and logs remain.
 
 ## Behavior
 
@@ -13,6 +42,7 @@ in a live room.
 - Being revived, or every teammate being down, returns your own camera.
 - Offline play and split screen are left alone.
 - Nothing is sent to other players. They do not need the plugin.
+- There is no manual button to switch teammates yet.
 - Only the supported EDF.dll (Steam, 2025-01 update) is patched. Any other build, or
   code another mod changed, makes the plugin refuse and change nothing.
 
@@ -45,16 +75,31 @@ Windows requires Visual Studio 2022 with Desktop development with C++ and CMake:
 ./build.ps1 -Test
 ```
 
-## Installation
+## Package a release
 
-Close the game and back up your saves. Copy `EDF6Spectate.dll` into the game's
-`Mods/Plugins` folder, next to any other plugins. EDFModLoader must already be
-installed (Proton needs the `WINEDLLOVERRIDES="winmm=n,b" %command%` launch option).
-Remove the DLL to uninstall.
+Python 3 and PowerShell are required in addition to the build tools. On Linux,
+`pwsh` exercises the Windows installer against temporary folders.
+
+```sh
+python3 -m pip install --require-hashes -r tools/requirements.txt
+EDF6_GAME_DIR="/path/to/EARTH DEFENSE FORCE 6" python3 tools/package.py
+```
+
+On Windows, install those requirements with `python -m pip`, set `EDF6_GAME_DIR`,
+and run `python tools/package.py`. Packaging builds the plugin, runs every game
+test without skips, tests the installers, and creates
+`release/EDF6Spectate-<version>.zip` and its `.zip.sha256`. It downloads the pinned
+official EDFModLoader and reproduces the same forwarder fix as EDF6Coop, checking
+both the input and output hashes. No sibling checkout is needed.
+
+See `docs/releasing.md` for the tagging and publishing procedure. GitHub CI checks
+MSVC and the installers; its two game-code tests report skipped without `EDF.dll`.
 
 ## Licenses
 
 `src/guard.h` comes from edf-coop-stable's `game/` folder, released into the public
 domain (`third_party/EDF6Coop/LICENSE.txt`). `third_party/EDFModLoader/PluginAPI.h`
 is MIT licensed (`third_party/EDFModLoader/LICENSE.txt`). This repository has no
-chosen license yet.
+chosen license yet. Loader packaging tools and Steam-library discovery were
+adapted from EDF6Coop under MIT; see `third_party/EDF6Coop/TOOLS_LICENSE.txt`.
+The release includes all three third-party notices.

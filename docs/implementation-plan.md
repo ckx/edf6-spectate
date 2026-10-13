@@ -49,6 +49,12 @@ A button to cycle teammates while down. Decide the input with the user first: th
 game's own input state is the most consistent with rebinding, XInput or keyboard
 polling are simpler. Add it only after M3 passes.
 
-## M5. Release
+## M5. Release packaging
 
-Packaging like AutoLoot's (ZIP with the DLL, a readme and SHA-256), after M3.
+The experimental 0.1.0 package includes Windows and Linux installers, a bundled
+EDFModLoader for fresh installs, notices and a SHA-256 file. Existing loaders and
+other mods are preserved. Packaging rebuilds and runs all game-code tests.
+
+The user requested an installable release before live testing. Publish it as an
+experimental prerelease with the missing live checks stated. M3 is still pending;
+a stable release follows successful live verification. See `releasing.md`.
