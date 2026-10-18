@@ -59,6 +59,9 @@ change. Runtime faults also record the exception code and instruction address.
 
 ## Documents
 
+- Linux/Proton camera-direction diagnostic download and capture instructions:
+  https://github.com/ckx/edf6-spectate/releases/tag/camera-diagnostics-1
+  This standalone read-only inspector is for collecting evidence, not a camera fix.
 - `docs/design.md`: behavior, runtime design and open decisions.
 - `docs/research.md`: the game interfaces used and their evidence.
 - `docs/implementation-plan.md`: milestones and the live checklist.

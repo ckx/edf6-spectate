@@ -3,6 +3,10 @@
 Keep experimental builds marked as prereleases until the live checklist in
 `implementation-plan.md` is complete. Automated tests do not replace online play.
 
+Every completed build, including diagnostics, must have downloadable GitHub release
+assets. Publish the corresponding source and instructions too. AGENTS.md provides
+standing authorization for publishing to the existing origin.
+
 1. Fetch origin and integrate upstream changes. Update the version in
    `CMakeLists.txt`, the package readme and the README download link. Write
    `release-notes/<version>.md` with the actual validation status.
@@ -26,6 +30,16 @@ Keep experimental builds marked as prereleases until the live checklist in
 
 Only the release assets contain DLLs. Do not commit game files, builds, logs,
 saves or local evidence. Packaging does not install anything in the game folder.
+
+## Standalone diagnostics
+
+Diagnostic tools that do not change the plugin use their own release tags and
+packages. Keep the plugin version unchanged. For the first camera inspector,
+use tag `camera-diagnostics-1` and package `EDF6Spectate-camera-diagnostics-1.zip`.
+The ZIP contains `tools/inspect_camera.py` as `inspect_camera.py` and
+`release-notes/camera-diagnostics-1.md` as `README.md`. Include its SHA-256 file
+as a separate release asset. Publish as a prerelease, then download both assets
+and verify the checksum and contents against the local package.
 
 ## Bundled loader
 

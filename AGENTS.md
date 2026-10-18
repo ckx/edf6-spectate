@@ -58,6 +58,17 @@ Inspect Git status before edits. Preserve unrelated work. Never discard commits 
 uncommitted files to make an operation convenient. When an origin exists, fetch and
 integrate upstream work before landing changes. Do not invent a remote destination.
 
+Publish every completed build to this repository's GitHub Releases, including
+experimental and diagnostic builds, so the user can distribute them to teammates.
+Diagnostic tools also need a downloadable package; a local file or source commit
+alone is not delivery. Commit and push the corresponding source and instructions,
+use a unique release tag, upload the package and SHA-256 checksum, and download the
+assets to verify them. State supported platforms, how to run the package, what was
+tested and any unresolved behavior. Mark experimental and diagnostic releases as
+prereleases. This is standing authorization to publish to the existing GitHub
+origin without asking again. It does not authorize force pushes or installing
+builds into the game.
+
 Make commits for meaningful completed work. Use a lowercase imperative subject,
 50 to 70 characters, with no prefix or trailing period. Add a short body only when
 needed. Do not add AI attribution, co-author trailers or session links.
