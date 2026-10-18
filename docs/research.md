@@ -416,7 +416,71 @@ MinGW/clang release build.
 No new tests or CI were added. No online HUD rendering, health changes, revival,
 vehicle transitions or disconnect behavior has yet been verified for 0.3.0.
 
+## Spectator direction investigation, 2026-10-17
+
+The user reports spectator views pointing in the wrong direction, at the ground,
+or straight ahead. The cause is unresolved. No camera correction has been installed.
+
+Observed in the supported EDF.dll:
+
+- The network writer `0x59FDB0` sends the player's float at `+0x1230` at
+  `0x59FE14`, followed by the sum of `+0x1234` and `+0x1E44` at `0x59FE24`.
+  The receiver `0x592180` stores these at `+0x1230` and `+0x1234` and clears
+  `+0x1248`, at `0x5921D2..0x5921F2`. These fields carry pitch and yaw in radians.
+  Missing pitch transmission is therefore not an explanation for this report.
+- Ghost-camera slot 4, `0xF86A0`, copies the target's matrix at `+0x60..+0x9F`
+  into camera `+0x370..+0x3AF` at `0xF871C..0xF8740`. It then copies camera
+  parameters from target `+0x170`, or `+0x230` when target byte `+0x224` is set,
+  into camera `+0x3B0` onwards at `0xF8745..0xF87E4`.
+- The follow calculation at `0xFAF29` uses the cached target matrix. Camera byte
+  `+0x3F0` enables explicit pitch/yaw from `+0x400` and `+0x404` instead, through
+  `0xFAF9A..0xFB00B`. These correspond to target byte `+0x1B0` and angles
+  `+0x1C0` in the normal parameter block. The vectors at camera `+0x3B0` and
+  `+0x3C0` are positional offsets, not look angles.
+- The camera can also adjust its direction when byte `+0x301` is set. The branch
+  at `0xFB123` reads a local target's setting at session player `+0x326`; a remote
+  target has no local controller and takes the default enabled value. This is a
+  path to inspect during the reported failure, not an established cause.
+- Player vtables used to identify the inspector's readable objects are Ranger
+  `0x17CDF28`, Air Raider `0x17CF100`, Fencer `0x17CF5B8`, Wing Diver `0x17D0FF8`
+  and SoldierBase `0x17D24D8`. Other object types are skipped.
+
+Read-only live captures at 04:24 and 04:26 UTC on 2026-10-18 contain 300 and
+600 samples at roughly 10 Hz. The room held one local and one remote player.
+The remote actor's forward axis matched the received pitch/yaw in every sample,
+within 0.001 degrees after normalizing both vectors. The local player's health
+stayed above zero, and the current camera followed the local player throughout.
+These captures do not reproduce or disprove the spectator fault. They do rule out
+a persistent mismatch between the remote angles and actor rotation in this sample.
+Evidence is in `local/direction-research/`, including disassembly and JSON captures.
+
+`tools/inspect_camera.py` makes this comparison repeatable on Linux/Proton. It
+opens `/proc/PID/mem` read-only, checks the mapped image headers, and records the
+current ghost camera, target, health, received angles, actor direction, cached
+target direction, output direction and camera mode flags. Unknown player classes
+are skipped. Invalid reads during mission changes produce an unavailable sample.
+Reads are not atomic, so isolated angular differences can reflect a frame advancing
+between reads. A camera's angular difference from the received look is diagnostic,
+not an assertion that every native camera mode must match those angles.
+
+Run with permission to inspect the game's process, during the bad spectator view:
+
+```sh
+mkdir -p local
+python3 tools/inspect_camera.py "$(pgrep -n -x EDF6.exe)" --duration 30 > local/camera-direction.jsonl
+```
+
+Validation: the inspector produced valid samples against the running supported
+game and identified both players and the local camera. No game memory was written.
+No plugin implementation changed, and no build or native-code test run was needed
+for this investigation. A capture while spectating incorrectly is still needed
+to distinguish stale received aim, a target transform problem and a camera mode
+that changes the output direction.
+
 ## Open questions
+
+- Capture the reported incorrect spectator direction, including whether it happens
+  on foot or in a vehicle and which class/action triggers it.
 
 - Live-check the isolated health/name components in 0.3.0, including name placement,
   health changes, revival, repeated deaths, vehicles and disconnected targets.
