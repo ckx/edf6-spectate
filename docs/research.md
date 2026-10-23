@@ -9,6 +9,8 @@ below. The user reported that 0.1.1 worked online. The log confirms following a
 teammate and returning to the local camera. The 0.2.0 combat HUD attempt crashed
 online; 0.2.1 removes its native HUD attachment. Version 0.3.0 uses only health
 and multiplayer name/health indicators. This smaller HUD is not live-verified.
+Version 0.4.0 turns the spectator view into an orbit around the watched teammate,
+aimed by the downed player's own look angles. It is not live-verified.
 
 ## Supported image
 
@@ -36,6 +38,9 @@ functions. Any mismatch refuses installation before anything is written.
 | Script `Object::IsAlive` | `0x1C0BE0` | `0x2E` | `0xA905EB899CAEB9D9` |
 | Script `IsOnlineMode` | `0x1B5DF0` | `0x2B` | `0xA71A18502F48BC92` |
 | `__RTDynamicCast` import thunk | `0x12DA7AA` | `0x6` | `0xD6E2BD7734AF1D4E` |
+| Ghost camera target copy (slot 4) | `0xF86A0` | `0x4A7` | `0xC8F39D3D226684CB` |
+| Ghost camera orbit rotation | `0xFAF20` | `0xF0` | `0x5A931A41EBC8898A` |
+| Network look angles | `0x59FE04` | `0x38` | `0x5271702E19DA8061` |
 
 Version 0.3.0 additionally checks these HUD ranges. The native builder is verified
 as evidence of parameter layout, but is never called by the plugin.
@@ -477,10 +482,87 @@ for this investigation. A capture while spectating incorrectly is still needed
 to distinguish stale received aim, a target transform problem and a camera mode
 that changes the output direction.
 
+## Orbit camera, 2026-10-22
+
+The user chose an orbit camera around the watched teammate, aimed with the downed
+player's own look controls, over a detached free-fly camera. Version 0.4.0
+implements it. Static analysis of the supported EDF.dll and read-only reads of the
+running game; nothing below has been seen working in a live room.
+
+Observed:
+
+- The 2026-10-17 capture `local/camera-direction.jsonl` was taken while the local
+  player was down (health 0) and the spectator camera showed slot 1. The local
+  player's look pitch `+0x1230` went from 0.004 to 1.21 rad and yaw `+0x1234` from
+  18.76 to 17.54 rad in the 23 seconds before the revive. A downed player's look input keeps updating
+  these angles while a teammate camera is current.
+- Ghost camera slot 4 (`0xF86A0`) is its per-step update. Camera update phase
+  `0x1199554` calls it through `0x118DF40` on each view's current camera, after the
+  object update phase. It copies the target's camera parameter block into camera
+  `+0x3B0..+0x45F`: the block at target `+0x230` when target byte `+0x224` is set,
+  else the one at `+0x170` (`0xF8745..0xF87E4`). Block byte `+0x40` becomes camera
+  `+0x3F0`, and the pair at `+0x50` becomes camera `+0x400/+0x404`. It then runs the
+  camera's state machine at `+0xB58` (`0xF8985`).
+- The follow state at `0xFAF20` builds the camera rotation from camera `+0x400`
+  (pitch) and `+0x404` (yaw) when `+0x3F0` is set: rows `(1,0,0)`, `(0,cos p,sin p)`,
+  `(0,-sin p,cos p)` (`sinf`/`cosf` thunks `0x12DA8B8`/`0x12DA8B2`), then
+  `0x4CD10` rotates them about the vertical axis by the yaw. The forward row becomes
+  `(sin y cos p, -sin p, cos y cos p)`, the convention the inspector uses for a
+  player's look angles. Position, offsets `+0x3B0/+0x3C0` and smoothing `+0x3D0`
+  are the same as in the normal path; only the rotation source changes
+  (`0xFAF9A..0xFB00B`, again at `0xFB562`).
+- Writers of soldier `+0x1B0` and `+0x1C0` (block `+0x170` plus `+0x40/+0x50`):
+  the constructor `0x545670` (zero, `r12` cleared at `0x5456AF`) and the parameter
+  load `0x54DDF0` (byte 0). No soldier code sets the byte to 1. `0x54DDF0` also runs
+  on a revive (`0x56D6C9`, when `+0x1180` is set) and on a state change at
+  `0x5697D9`.
+- The Ranger and Air Raider per-frame class updates (`0x550C30`, `0x563DC0`, vtable
+  slot 5) fill the `+0x230` block from the `+0x170` block, including `+0x40/+0x50`,
+  and set `+0x224`, only for a soldier with a local controller (`+0x340`). The
+  2026-10-17 capture recorded remote `+0x224` set in 3 of 299 samples, so the
+  plugin writes both blocks.
+- Network writer `0x59FDB0` sends `+0x1230` and `+0x1234 + +0x1E44`. `+0x1E44` is a
+  Ranger yaw offset clamped to ±π/2 (`0x552287`), zeroed elsewhere. The plugin uses
+  the same sum for the local player's yaw.
+- Ghost camera slot 9 (`0xF7500`) returns false when `+0x3F0` is set.
+  `HUiHudBaseObject` slot 3 (`0x8168B0`, the health gauge's visibility check) skips
+  enabling its widgets when the camera's slot 9 returns false. It runs from the
+  render command `0x118D810` that `0x11977F0` queues after `System::Update`. The
+  same slot 3 is shared by the damage and weapon HUD objects.
+  `HudPlayer_MultiPlayStatus` (vtable `0x17F6C98`) has no slot 9 call in its own
+  methods.
+- Read-only check of the running game on 2026-10-22 (three-player room, 0.3.0
+  installed): every hashed range matched except the `System::Update` call, which the
+  installed plugin had already redirected. All three soldiers had byte 0 and angles
+  0 in both blocks.
+
+Inference: setting the byte and angles on the watched remote soldier before
+`System::Update` makes its ghost camera orbit at those angles from the next camera
+update, with the game's own offsets and smoothing. A parameter reload during the
+object update phase clears the byte for that frame only. The health gauge is
+expected to hide while the camera orbits; the name/health indicators are expected
+to stay.
+
+Implementation: each frame after choosing the target, `Follow` reads the local look
+angles. For the target teammate it writes pitch and yaw to `+0x50/+0x54` of both
+blocks and sets `+0x40`. Every other remote soldier with `+0x40` set gets 0. Non-finite
+angles clear the byte, so the camera falls back to the teammate's facing. The local
+soldier is not written. No game pointers are kept.
+
+Validation: MinGW/clang build, the existing four tests under Wine with the game's
+EDF.dll (all passed; `PluginLoadsIntoGame` hashes the new ranges in the mapped DLL),
+and the read-only live range check above. No test exercises the camera update; it
+needs the game's scene objects. Live checks still needed: the view follows mouse
+and right-stick look while down, pitch limits, the transition at going down and at
+revive, target changes, the health gauge and indicators, vehicles, and other
+classes as the watched teammate.
+
 ## Open questions
 
 - Capture the reported incorrect spectator direction, including whether it happens
-  on foot or in a vehicle and which class/action triggers it.
+  on foot or in a vehicle and which class/action triggers it. Version 0.4.0 no
+  longer takes the view direction from the teammate, so this applies only if a
+  fallback to the teammate's facing is kept.
 
 - Live-check the isolated health/name components in 0.3.0, including name placement,
   health changes, revival, repeated deaths, vehicles and disconnected targets.
@@ -496,3 +578,5 @@ that changes the output direction.
   check and the camera update.
 - Whether any job thread reads view 0's camera while `Application::Update` runs.
 - Which input should cycle teammates. The prototype has none.
+- Whether the orbit camera follows the downed player's look input in a live room,
+  and whether the health gauge hides as the static analysis predicts.

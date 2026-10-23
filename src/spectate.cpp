@@ -53,6 +53,18 @@ constexpr std::size_t kHealth = 0x2F8;        // float; the script's IsAlive is 
 constexpr std::size_t kLocalControl = 0x340;  // set on a locally controlled player
 constexpr std::size_t kNetPlayer = 0x1ED0;    // a network player's record, with its slot at +0x48
 constexpr std::size_t kNetSlot = 0x48;
+// Look angles in radians, which keep following the local player's input while they are down. The network sends
+// pitch and yaw + yaw offset (59FE14, 59FE24), and a remote copy stores that sum as its yaw.
+constexpr std::size_t kLookPitch = 0x1230;
+constexpr std::size_t kLookYaw = 0x1234;
+constexpr std::size_t kLookYawOffset = 0x1E44;
+// Camera parameters a ghost camera copies from its target each update (F8745): the block at +0x230 while byte
+// +0x224 is set, else the one at +0x170. A block's byte +0x40 makes the camera orbit the target at the pitch/yaw
+// pair at +0x50 instead of looking along the target's own facing (FAF3C). No game code sets that byte to anything
+// but 0.
+constexpr std::size_t kCameraParams[] = {0x170, 0x230};
+constexpr std::size_t kParamOrbit = 0x40;
+constexpr std::size_t kParamAngles = 0x50;
 // shared_ptr control block (MSVC): vtable (+0 destroy the object, +8 delete the block), uses +8, weaks +0xC.
 constexpr std::size_t kUses = 0x8;
 constexpr std::size_t kWeaks = 0xC;
@@ -112,6 +124,9 @@ constexpr Code kCode[] = {
     {"current camera update", 0x11978D0, 0x1000, 0x15240CC9F660A4DA},
     {"create_remote_camera", 0xCCCA0, 0x2D9, 0x7B438E325C57D000},
     {"CharacterGhostCamera constructor", 0xF4860, 0x974, 0xB9D5E9BDAA015326},
+    {"ghost camera target copy", 0xF86A0, 0x4A7, 0xC8F39D3D226684CB},
+    {"ghost camera orbit rotation", 0xFAF20, 0xF0, 0x5A931A41EBC8898A},
+    {"network look angles", 0x59FE04, 0x38, 0x5271702E19DA8061},
     {"IsPlayer", 0x550890, 0xA, 0x1D923A0DEC9EF9A4},
     {"IsAlive", 0x1C0BE0, 0x2E, 0xA905EB899CAEB9D9},
     {"IsOnlineMode", kIsOnlineMode, 0x2B, 0xA71A18502F48BC92},
@@ -143,6 +158,11 @@ T At(std::uintptr_t address) {
 }
 
 std::uintptr_t Ptr(std::uintptr_t address) { return At<std::uintptr_t>(address); }
+
+template <typename T>
+void Put(std::uintptr_t address, T value) {
+    std::memcpy(reinterpret_cast<void*>(address), &value, sizeof(T));
+}
 
 bool Expired(std::uintptr_t control) { return !control || At<std::int32_t>(control + kUses) <= 0; }
 
@@ -294,6 +314,21 @@ bool Create(std::uintptr_t system, std::uintptr_t object, std::uintptr_t viewer,
     return true;
 }
 
+// Cameras following `soldier` orbit it at `look` (pitch, yaw), or go back to its own facing. Only the plugin sets
+// the orbit byte, so clearing it restores the game's value. The camera copies it during the System::Update that
+// follows; a parameter reload the game does in that update (on a revive, 56D6C9) costs one frame of the old view.
+void Orbit(std::uintptr_t soldier, const float* look) {
+    for (const std::size_t params : kCameraParams) {
+        if (look) {
+            Put<float>(soldier + params + kParamAngles, look[0]);
+            Put<float>(soldier + params + kParamAngles + 4, look[1]);
+            Put<std::uint8_t>(soldier + params + kParamOrbit, 1);
+        } else if (At<std::uint8_t>(soldier + params + kParamOrbit)) {
+            Put<std::uint8_t>(soldier + params + kParamOrbit, 0);
+        }
+    }
+}
+
 void Follow(std::uintptr_t system) {
     if (!reinterpret_cast<IsOnlineModeFn>(game + kIsOnlineMode)()) {
         createdThisDown = 0;
@@ -326,6 +361,13 @@ void Follow(std::uintptr_t system) {
         for (std::size_t i = 0; i < roster.remotes; ++i) mates[i] = {roster.remote[i].slot, roster.remote[i].alive};
         target = NextTarget(mates, roster.remotes, followedSlot);
     }
+    // The watched teammate's camera looks where the downed local player looks.
+    const std::uintptr_t local = roster.local.object;
+    const float look[2] = {At<float>(local + kLookPitch),
+                           At<float>(local + kLookYaw) + At<float>(local + kLookYawOffset)};
+    const bool steerable = std::isfinite(look[0]) && std::isfinite(look[1]);
+    for (std::size_t i = 0; i < roster.remotes; ++i)
+        Orbit(roster.remote[i].object, steerable && roster.remote[i].slot == target ? look : nullptr);
     if (target == followedSlot) return;
 
     std::uintptr_t object = roster.local.object;
@@ -441,7 +483,8 @@ bool Install(unsigned char* base) {
     std::memcpy(site + 1, &relative, sizeof(relative));
     VirtualProtect(site + 1, sizeof(relative), protection, &protection);
     FlushInstructionCache(GetCurrentProcess(), site, 5);
-    Log("Installed: a downed player online watches a living teammate until revived (System::Update call EDF+%X)",
+    Log("Installed: a downed player online orbits a living teammate with their own look controls until revived "
+        "(System::Update call EDF+%X)",
         kSystemUpdateCall);
     return true;
 }

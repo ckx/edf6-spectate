@@ -1,18 +1,20 @@
 # EDF6 Spectate
 
 An EDFModLoader plugin for EARTH DEFENSE FORCE 6. In an online room, a downed player
-watches a standing teammate through the game's follow camera until revived.
+watches a standing teammate through the game's follow camera until revived. The
+camera orbits that teammate and is aimed with the downed player's own look controls.
 
 Status: experimental. Camera following worked online in 0.1.1. Version 0.3.0
-adds only the watched teammate's health bar and the native multiplayer name/health
-indicators. It avoids the full HUD builder that crashed in 0.2.0. The smaller HUD
-still needs an online check; 0.2.1 remains the camera-only fallback.
+added the watched teammate's health bar and the native multiplayer name/health
+indicators. Version 0.4.0 replaces the teammate's own view with an orbit camera you
+aim yourself. Neither the 0.3.0 HUD nor the 0.4.0 camera has been checked online.
+0.3.0 is the fallback that copies the teammate's view.
 
 ## Install
 
-Download `EDF6Spectate-0.3.0.zip` from the experimental release:
+Download `EDF6Spectate-0.4.0.zip` from the experimental release:
 
-https://github.com/ckx/edf6-spectate/releases/tag/v0.3.0
+https://github.com/ckx/edf6-spectate/releases/tag/v0.4.0
 
 Close EDF6, back up your saves, and extract the whole ZIP to a separate folder.
 Use the release ZIP, not GitHub's source-code archives.
@@ -30,8 +32,9 @@ existing `winmm.dll`, other mods, settings and launch options. If `ModLoader.ini
 exists, it must permit loading plugins. EDF6Coop is not required.
 
 Start from Steam as usual. Check `Mods/Plugins/EDF6Spectate.log` for `Installed:`.
-For the first online test, go down, watch a teammate move, and get revived. Camera
-handover, disconnects and mission transitions still need live verification.
+For the first online test, go down, look around the teammate with mouse or right
+stick, and get revived. Camera handover, disconnects and mission transitions still
+need live verification.
 
 Upgrade by running the newer installer with the game closed. Uninstall with
 `UNINSTALL.bat` or `bash install.sh --uninstall`. This removes only the spectator
@@ -41,10 +44,16 @@ DLL; the loader, other mods and logs remain.
 
 - Going down online switches your view to the standing teammate with the lowest
   slot. If they go down or leave, it moves to the next one.
+- The camera orbits the watched teammate and points where you look. Turn it with
+  your normal look controls (mouse or right stick, your own bindings and
+  sensitivity). It does not copy the teammate's aim. There is no detached free-fly
+  camera.
 - Being revived, or every teammate being down, returns your own camera.
 - The watched teammate gets a native health bar with current/maximum health.
-  Multiplayer name/health indicators keep your local player as their viewer, so
-  they include the watched teammate and use the game's normal name settings.
+  Static analysis says the game hides this bar while the camera orbits; this is
+  unverified. Multiplayer name/health indicators keep your local player as their
+  viewer, so they include the watched teammate and use the game's normal name
+  settings.
 - Your own camera and HUD return on revival. Ammo, radar, damage effects and class
   gauges are not attached to spectator cameras. Health/name placement and updates
   still need a live check.

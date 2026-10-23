@@ -1,15 +1,18 @@
-EDF6 Spectate 0.3.0 - experimental
+EDF6 Spectate 0.4.0 - experimental
 
-Version 0.3.0 adds the watched teammate's health bar and native multiplayer
-name/health indicators. This smaller HUD still needs an online check. It does not
-use the full HUD builder that crashed in 0.2.0. Version 0.2.1 is the camera-only
-fallback.
+Version 0.4.0 makes the spectator camera orbit the watched teammate. You aim it
+with your own look controls instead of seeing the teammate's view. This has not
+been checked online yet. Version 0.3.0 is the fallback that copies the teammate's
+view.
 
 HOW IT WORKS
 When you go down online, the camera follows a living teammate. If that player goes
-down or leaves, it selects another. Reviving, or everyone going down, returns your
+down or leaves, it selects another. The camera orbits that teammate and points
+where you look: turn it with the mouse or right stick, using your normal bindings
+and sensitivity. Reviving, or everyone going down, returns your
 camera and original HUD. The spectator health bar reads the watched teammate's
-current and maximum health. Multiplayer name/health indicators remain bound to
+current and maximum health; the game may hide this bar while the camera orbits.
+Multiplayer name/health indicators remain bound to
 you as the viewer so the watched player stays included. Name display follows the
 game's normal settings. Ammo, radar, damage effects and class gauges stay disabled
 on spectator cameras. Other players do not need this mod. No extra network
@@ -49,8 +52,9 @@ CHECK / REMOVE
 Mods/Plugins/EDF6Spectate.log should contain "Installed:" after launching.
 "REFUSED:" means unsupported or modified game code; the plugin changes nothing.
 "STOPPED:" means a runtime fault; stop testing and keep the log for a bug report.
-Try going down, watching a teammate lose/recover health, and getting revived.
-Check names and health values as well as your own HUD after revival. Online behavior,
+Try going down, looking around your teammate with the mouse or right stick, and
+getting revived. Check whether the health bar and the name/health indicators show,
+and that your own camera and HUD return after revival. Online behavior,
 disconnects, mission transitions and compatibility still need live verification.
 Upgrade by running the newer installer with EDF6 closed.
 Uninstall with UNINSTALL.bat, or: bash install.sh --uninstall

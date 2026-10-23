@@ -10,9 +10,11 @@ repositories. Do not require them at runtime. Use them as references for the loa
 API, guarded reads, hooks and native-code test fixtures. Check licenses and preserve
 required notices before copying source.
 
-Do not add a free camera, watching while alive, offline or split-screen behavior,
-network messages, HUD changes or unrelated patches without a new scope decision from
-the user. The input for cycling teammates is an open decision (see the plan).
+The spectator camera orbits the watched teammate and is aimed by the downed player's
+own look input (user decision, 2026-10-22). Do not add a detached free-fly camera,
+watching while alive, offline or split-screen behavior, network messages, HUD changes
+or unrelated patches without a new scope decision from the user. The input for
+cycling teammates is an open decision (see the plan).
 
 ## Implementation
 

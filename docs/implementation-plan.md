@@ -96,3 +96,28 @@ record and room slot. New code checks cover those interfaces. The release is bui
 and packaged, but no live HUD check has passed yet. Check health changes, name
 visibility, inactive-camera HUD hiding, revival, a second death, vehicles and
 teammate departures before expanding the HUD.
+
+## M7. Orbit camera aimed by the downed player
+
+The user asked for a free camera instead of the teammate's own view and chose an
+orbit around the watched teammate, aimed with the downed player's normal look
+controls (2026-10-22). A detached free-fly camera is out of scope.
+
+Version 0.4.0 sets the watched remote soldier's camera parameters to the ghost
+camera's orbit mode with the local player's look pitch and yaw each frame, and
+clears it on every other remote soldier. Evidence and the reasoning about the HUD
+are in `research.md` (Orbit camera). Built and run against the existing tests; no
+live check has passed.
+
+Live checks:
+
+1. Going down: the view moves to the teammate and then turns with mouse and right
+   stick. Up/down limits match normal aiming.
+2. The camera stays near the teammate as they move, with no clipping or jitter
+   beyond the normal follow camera.
+3. A target change keeps the current look direction.
+4. Revive: the player's own camera returns facing the last look direction, with
+   the normal HUD and aim.
+5. Whether the health gauge hides while orbiting (predicted) and whether the
+   name/health indicators stay.
+6. Watched teammates of each class, on foot and in vehicles.
